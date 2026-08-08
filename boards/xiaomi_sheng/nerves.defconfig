@@ -27,9 +27,9 @@ BR2_LINUX_KERNEL_CUSTOM_REPO_VERSION="sheng-7.1.5"
 BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
 BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="/nerves/env/nerves_system_sheng/boards/xiaomi_sheng/sm8550.config"
 
-# Build kernel with GCC 13.4.0 (not LLVM/Clang).
-# LLVM builds were causing boot failures; reverting to GCC.
-# BR2_LINUX_KERNEL_LLVM=y
+# Kernel builds with the standard GCC 13.4.0 toolchain configured below.
+# LLVM/Clang was tried and caused boot failures - reverted, no longer an
+# available option (the patch adding it was removed).
 
 # Linux Headers: standard official 7.0.x headers (kernel.org), independent of our
 # custom kernel source. Verified via the same local dry run - this is the
