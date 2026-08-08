@@ -5,6 +5,8 @@
 /artifacts
 /.nerves
 /nerves-system-*
+/o
+build.log
 /_build
 /cover
 /deps
