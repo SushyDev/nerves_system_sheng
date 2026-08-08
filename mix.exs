@@ -21,7 +21,6 @@ defmodule NervesSystemSheng.MixProject do
     [
       type: :system,
       build_runner_opts: build_runner_opts(),
-      build_runner_config: build_runner_config(),
       platform: Nerves.System.BR,
       platform_config: [
         defconfig: "boards/xiaomi_sheng/nerves.defconfig"
@@ -44,10 +43,6 @@ defmodule NervesSystemSheng.MixProject do
 
   defp build_runner_opts do
     [make_args: ["source", "all"]]
-  end
-
-  defp build_runner_config do
-    [docker: {"support/docker/nerves_system_br/Dockerfile", "nerves_system_sheng:local"}]
   end
 
   defp deps do
