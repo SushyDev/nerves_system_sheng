@@ -157,6 +157,28 @@ BR2_PACKAGE_LIBMNL=y
 # wifi control) - nerves_pack pulls in vintage_net_wifi as a dependency.
 BR2_PACKAGE_LIBNL=y
 
+# wpa_supplicant: VintageNetWiFi shells out to this binary to actually
+# associate with WPA-PSK networks - it was never enabled, so wlan0
+# configuration could never connect regardless of the ath12k driver/
+# firmware being present. NL80211 variant since ath12k is a modern
+# cfg80211/mac80211 driver, not the legacy wext interface.
+#
+# CTRL_IFACE and WPS: Buildroot's default wpa_supplicant build config
+# comments both out (verified in deps/nerves_system_br/buildroot-2026.05.1/
+# package/wpa_supplicant/wpa_supplicant.config - CONFIG_CTRL_IFACE and
+# CONFIG_WPS are both `#`-commented). VintageNetWiFi's generated
+# wpa_supplicant.conf.wlan0 always includes `ctrl_interface=...` (its
+# control socket, needed for wpa_cli/status queries) and
+# `wps_cred_processing=1` unconditionally - without these two Buildroot
+# options, wpa_supplicant rejects the file at startup with "unknown global
+# field" for both lines and exits 255 before ever attempting to associate,
+# which VintageNet then silently retries forever with no useful error
+# surfaced (only the bare exit status, not wpa_supplicant's own stderr).
+BR2_PACKAGE_WPA_SUPPLICANT=y
+BR2_PACKAGE_WPA_SUPPLICANT_NL80211=y
+BR2_PACKAGE_WPA_SUPPLICANT_CTRL_IFACE=y
+BR2_PACKAGE_WPA_SUPPLICANT_WPS=y
+
 # Audio: ALSA library + UCM (Use Case Manager) support for the CS35L43/WCD938X
 # mixer routing profiles installed via the rootfs overlay above.
 # ALSA utilities provide aplay, speaker-test, and other tools for audio playback.
@@ -168,3 +190,13 @@ BR2_PACKAGE_ALSA_LIB_UCM=y
 BR2_PACKAGE_ALSA_UTILS=y
 BR2_PACKAGE_ALSA_UTILS_APLAY=y
 BR2_PACKAGE_ALSA_UTILS_SPEAKER_TEST=y
+
+# alsaucm/amixer: the raw hw:0,0 PCM device rejects playback with "no
+# backend DAIs enabled ... missing ALSA mixer-based routing or UCM profile"
+# (confirmed live via speaker-test) - the DAPM widget path between the
+# MultiMedia PCM and the physical CS35L43/WCD938X codecs isn't connected by
+# default and needs the vendored UCM2 profile (rootfs_overlay/usr/share/
+# alsa/ucm2/...) applied via alsaucm, or the equivalent amixer controls set
+# directly, before any audio can actually flow.
+BR2_PACKAGE_ALSA_UTILS_ALSAUCM=y
+BR2_PACKAGE_ALSA_UTILS_AMIXER=y

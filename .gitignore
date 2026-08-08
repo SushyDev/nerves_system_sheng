@@ -3,6 +3,7 @@
 /buildroot*
 *~
 /artifacts
+/.nerves
 /nerves-system-*
 /_build
 /cover
