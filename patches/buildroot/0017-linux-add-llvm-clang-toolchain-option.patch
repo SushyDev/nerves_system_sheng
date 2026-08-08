@@ -1,0 +1,102 @@
+linux: add BR2_LINUX_KERNEL_LLVM option to build the kernel with LLVM/Clang
+
+Adds an opt-in BR2_LINUX_KERNEL_LLVM Kconfig boolean that, when set,
+passes LLVM=1 to the kernel build (matching the upstream kernel's
+documented LLVM=1 build mode, Documentation/kbuild/llvm.rst). Only the
+`linux` package is affected - the rest of the system keeps using
+whatever toolchain is configured elsewhere in Buildroot.
+
+Also fixes an interaction bug this option exposes: linux.mk
+unconditionally adds -Wno-attribute-alias to LINUX_CFLAGS whenever
+BR2_TOOLCHAIN_GCC_AT_LEAST_8=y, to suppress a GCC-8+-specific warning.
+That symbol reflects Buildroot's overall configured toolchain, not
+necessarily what the kernel itself is compiled with - under
+BR2_LINUX_KERNEL_LLVM the kernel uses clang regardless, and clang
+doesn't recognize this GCC-only flag at all ("unknown warning option
+'-Wno-attribute-alias'"), which is a hard error under kbuild's own
+-Werror. Fixed by skipping the flag when BR2_LINUX_KERNEL_LLVM=y.
+
+Motivation (nerves_system_sheng, boards/xiaomi_sheng): this board
+builds a kernel (ianchb/sm8550-mainline) that every known-good
+reference - references/debian-sheng's CI and
+references/Linux-xiaomi-sheng's own build script - compiles with
+`CC="ccache clang" LLVM=1`, never GCC. Buildroot's own GCC 14.4.0
+self-bootstrap independently fails on this build host (unrelated
+vectorizer linker bug), which was worked around by pinning to GCC
+13.4.0 for the whole system - but that GCC version has never actually
+been validated against this specific kernel/device by any reference
+build. This option lets the board build just the kernel with Clang to
+close that gap, without switching Buildroot's entire toolchain (which
+this Buildroot version has no built-in support for) or hand-patching
+the vendored linux.mk with no tracked record of the change.
+
+CROSS_COMPILE is left set in LINUX_MAKE_FLAGS regardless of this
+option: the kernel Makefile's LLVM=1 mode only reads it to derive
+clang's --target= triple, it does not invoke $(CROSS_COMPILE)ar/nm/etc
+(those are replaced by llvm-ar/llvm-nm/etc under LLVM=1), so no actual
+aarch64-*-gcc toolchain binaries need to exist for this to work.
+
+Requires clang, lld, and llvm-* binutils on PATH in the build
+environment (see boards/xiaomi_sheng's own nerves.defconfig comment
+and support/docker/nerves_system_br/Dockerfile).
+---
+diff --git a/linux/Config.in b/linux/Config.in
+--- a/linux/Config.in
++++ b/linux/Config.in
+@@ -235,6 +235,19 @@
+ 	  converted to the linux kernel format (224 colors only)
+ 	  and copied over the original logo file.
+
++config BR2_LINUX_KERNEL_LLVM
++	bool "build kernel with LLVM/Clang instead of the configured toolchain"
++	help
++	  Build the Linux kernel with LLVM=1 (clang/lld/llvm-* binutils)
++	  instead of Buildroot's normal $(TARGET_CROSS) GCC toolchain,
++	  matching the upstream kernel's documented LLVM=1 build mode
++	  (Documentation/kbuild/llvm.rst). Only the kernel package is
++	  affected; the rest of the system (userspace, other packages)
++	  still uses the toolchain selected elsewhere in Buildroot.
++
++	  clang, lld, and the llvm-* binutils must be present on PATH
++	  in the build environment for this to work.
++
+ #
+ # Binary format
+ #
+diff --git a/linux/linux.mk b/linux/linux.mk
+--- a/linux/linux.mk
++++ b/linux/linux.mk
+@@ -166,6 +166,15 @@
+ 	REGENERATE_PARSERS=1 \
+ 	DEPMOD=$(HOST_DIR)/sbin/depmod
+
++# See BR2_LINUX_KERNEL_LLVM in linux/Config.in. CROSS_COMPILE is left as-is
++# above: the kernel Makefile's LLVM=1 mode only uses it to derive clang's
++# --target= triple, it does not invoke $(CROSS_COMPILE)ar/nm/etc (those are
++# replaced by llvm-ar/llvm-nm/etc under LLVM=1), so no real
++# aarch64-*-gcc toolchain needs to exist for this to work.
++ifeq ($(BR2_LINUX_KERNEL_LLVM),y)
++LINUX_MAKE_FLAGS += LLVM=1
++endif
++
+ ifeq ($(BR2_REPRODUCIBLE),y)
+ LINUX_MAKE_ENV += \
+ 	KBUILD_BUILD_VERSION=1 \
+@@ -180,8 +189,17 @@
+ # abusing those aliases for system call entry points, in order to
+ # sanitize the arguments passed from user space in registers.
+ # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=82435
++#
++# BR2_TOOLCHAIN_GCC_AT_LEAST_8 reflects Buildroot's overall configured
++# toolchain, not necessarily what the kernel itself is compiled with - under
++# BR2_LINUX_KERNEL_LLVM (see above) the kernel uses clang regardless of this
++# being GCC 8+, and clang doesn't recognize this GCC-specific flag at all
++# ("unknown warning option '-Wno-attribute-alias'"), which is a hard error
++# under kbuild's own -Werror. Skip it in that case.
+ ifeq ($(BR2_TOOLCHAIN_GCC_AT_LEAST_8),y)
++ifneq ($(BR2_LINUX_KERNEL_LLVM),y)
+ LINUX_CFLAGS += -Wno-attribute-alias
++endif
+ endif
+
+ # Disable FDPIC if enabled by default in toolchain
