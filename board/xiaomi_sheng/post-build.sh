@@ -58,7 +58,7 @@ cat "$KERNEL_TO_USE" "$DEVICE_TREE" > "$ZIMAGE"
 # 0xa90000 isn't uart7's address at all. console=ttyMSM0 is separately
 # confirmed correct: qcom_geni_serial.c registers its uart_driver with
 # .dev_name = "ttyMSM".
-CMDLINE="root=PARTLABEL=userdata rootwait rw console=ttyMSM0,115200n8 earlycon=qcom_geni,0xa9c000 loglevel=7 usb3.dr_mode=device"
+CMDLINE="root=PARTLABEL=userdata rootwait rw console=ttyMSM0,115200n8 console=ttyGS0,115200 earlycon=qcom_geni,0xa9c000 loglevel=8 usb3.dr_mode=device"
 BASE="0x00000000"
 KERNEL_OFFSET="0x00008000"
 TAGS_OFFSET="0x01e00000"

@@ -1,57 +1,60 @@
-defmodule Nerves.System.BR.Mixfile do
+defmodule NervesSystemSheng.MixProject do
   use Mix.Project
-
-  @version Path.join(__DIR__, "VERSION")
-           |> File.read!()
-           |> String.trim()
 
   def project do
     [
-      app: :nerves_system_br,
-      version: @version,
-      elixir: "~> 1.2",
-      description: description(),
-      package: package(),
-      compilers: [:app],
-      nerves_package: [type: :system_platform]
+      app: :nerves_system_sheng,
+      version: "1.34.1",
+      elixir: "~> 1.14",
+      compilers: Mix.compilers() ++ [:nerves_package],
+      nerves_package: nerves_package(),
+      description: "Nerves System for Xiaomi Pad 6S Pro",
+      deps: deps()
     ]
   end
 
-  defp description do
-    """
-    Nerves System BR - Buildroot based build platform for Nerves Systems
-    """
+  def application do
+    []
   end
 
-  defp package do
+  defp nerves_package do
     [
-      files: [
-        "CHANGELOG.md",
-        "board",
-        "package",
-        "patches",
-        "scripts",
-        "support",
-        "Config.in",
-        "create-build.sh",
-        "external.mk",
-        "external.desc",
-        "LICENSES/*",
-        "mix.exs",
-        "nerves_env.exs",
-        "nerves-env.sh",
-        "nerves-env.cmake",
-        "nerves.mk",
-        "README.md",
-        "REUSE.toml",
-        "VERSION"
+      type: :system,
+      build_runner_opts: build_runner_opts(),
+      build_runner_config: build_runner_config(),
+      platform: Nerves.System.BR,
+      platform_config: [
+        defconfig: "boards/xiaomi_sheng/nerves.defconfig"
       ],
-      licenses: ["Apache-2.0", "GPL-2.0-or-later"],
-      links: %{
-        "GitHub" => "https://github.com/nerves-project/nerves_system_br",
-        "REUSE Compliance" =>
-          "https://api.reuse.software/info/github.com/nerves-project/nerves_system_br"
-      }
+      checksum: package_files()
+    ]
+  end
+
+  defp package_files do
+    [
+      "board",
+      "boards",
+      "patches",
+      "Config.in",
+      "external.desc",
+      "external.mk",
+      "VERSION"
+    ]
+  end
+
+  defp build_runner_opts do
+    [make_args: ["source", "all"]]
+  end
+
+  defp build_runner_config do
+    [docker: {"support/docker/nerves_system_br/Dockerfile", "nerves_system_sheng:local"}]
+  end
+
+  defp deps do
+    [
+      {:nerves, "~> 1.14.3", runtime: false},
+      {:nerves_system_br, "~> 1.34.0", runtime: false},
+      {:nerves_toolchain_aarch64_nerves_linux_gnu, "~> 15.3.0", runtime: false}
     ]
   end
 end
