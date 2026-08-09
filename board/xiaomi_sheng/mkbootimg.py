@@ -13,11 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Vendored verbatim from references/debian-sheng/mkbootimg (same tool their
-# CI uses for a known-good, flash-tested boot.img for this device).
-#
-# Build container has no `mkbootimg`/`android-tools`; python3 always does.
 
 """Creates the boot image."""
 
