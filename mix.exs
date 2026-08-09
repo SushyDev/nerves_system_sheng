@@ -33,6 +33,7 @@ defmodule NervesSystemSheng.MixProject do
     [
       "board",
       "boards",
+      "package",
       "patches",
       "Config.in",
       "external.desc",
