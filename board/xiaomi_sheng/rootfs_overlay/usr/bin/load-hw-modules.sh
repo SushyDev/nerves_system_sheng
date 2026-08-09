@@ -1,5 +1,5 @@
 #!/bin/sh
-# POSIX sh, not bash - see boot-led-blink.sh header for why.
+# POSIX sh, not bash: no BR2_PACKAGE_BASH here, only BusyBox ash.
 #
 # No udev/mdev hotplug auto-loading on Nerves, so load WiFi/audio modules
 # explicitly. modprobe pulls in each dependency chain via modules.dep.

@@ -1,6 +1,6 @@
 #!/bin/sh
-# busybox-ntpd CLI shim over chronyd, POSIX sh (see boot-led-blink.sh header
-# for why: no bash on this system).
+# busybox-ntpd CLI shim over chronyd, POSIX sh: no BR2_PACKAGE_BASH on this
+# system, only BusyBox ash.
 #
 # nerves_time's NervesTime.Ntpd always execs "/usr/sbin/ntpd -n -S <script>
 # -p <server> ..." expecting busybox ntpd, and learns sync status by having

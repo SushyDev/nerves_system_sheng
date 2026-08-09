@@ -1,7 +1,6 @@
 # Xiaomi Pad 6S Pro (SM8550) - Nerves System Configuration
 BR2_aarch64=y
-BR2_CORTEX_A76=y
-BR2_ARM_FPU_NEON=y
+BR2_cortex_a76=y
 
 # board/nerves-common/skeleton was never wired up (same class of bug as the
 # busybox config below): Buildroot's own default skeleton has no /var at
@@ -37,8 +36,6 @@ BR2_LINUX_KERNEL_PATCH="/nerves/env/nerves_system_sheng/board/xiaomi_sheng/patch
 
 BR2_PACKAGE_LINUX_FIRMWARE=y
 BR2_PACKAGE_LINUX_FIRMWARE_QCOM_ADRENO=y
-BR2_PACKAGE_LINUX_FIRMWARE_QCOM_MODEM=y
-BR2_PACKAGE_LINUX_FIRMWARE_QCOM_AUDIO=y
 # WiFi (ath12k, PCIe transport - see CONFIG_ATH12K_PCI in sm8550.config).
 # Generic upstream calibration data; post-build-target.sh overwrites it with
 # the device-specific set. No WCN7850 Bluetooth firmware option in this
@@ -115,13 +112,10 @@ BR2_PACKAGE_WPA_SUPPLICANT_NL80211=y
 BR2_PACKAGE_WPA_SUPPLICANT_CTRL_IFACE=y
 BR2_PACKAGE_WPA_SUPPLICANT_WPS=y
 
-# ALSA + UCM for the CS35L43/WCD938X mixer routing profiles (rootfs overlay
-# above). aplay + speaker-test needed for boot-beep.sh.
+# ALSA + UCM for the CS35L43/WCD938X mixer routing profiles (rootfs overlay above).
 BR2_PACKAGE_ALSA_LIB=y
 BR2_PACKAGE_ALSA_LIB_UCM=y
 BR2_PACKAGE_ALSA_UTILS=y
-BR2_PACKAGE_ALSA_UTILS_APLAY=y
-BR2_PACKAGE_ALSA_UTILS_SPEAKER_TEST=y
 
 # raw hw:0,0 rejects playback ("no backend DAIs enabled") until the vendored
 # UCM2 profile is applied via alsaucm, or equivalent amixer controls are set.

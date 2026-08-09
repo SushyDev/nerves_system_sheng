@@ -1,20 +1,42 @@
-defmodule NervesSystemSheng.MixProject do
+defmodule Nerves.System.Sheng.Mixfile do
   use Mix.Project
+
+  @version Path.join(__DIR__, "VERSION")
+           |> File.read!()
+           |> String.trim()
 
   def project do
     [
       app: :nerves_system_sheng,
-      version: "1.34.1",
+      version: @version,
       elixir: "~> 1.14",
       compilers: Mix.compilers() ++ [:nerves_package],
       nerves_package: nerves_package(),
-      description: "Nerves System for Xiaomi Pad 6S Pro",
+      description: description(),
+      package: package(),
       deps: deps()
     ]
   end
 
   def application do
     []
+  end
+
+  defp description do
+    """
+    Nerves System Sheng - Buildroot based system for the Xiaomi Pad 6S Pro (sheng)
+    """
+  end
+
+  defp package do
+    [
+      licenses: ["Apache-2.0", "GPL-2.0-or-later"],
+      links: %{
+        "GitHub" => "https://github.com/SushyDev/nerves_system_sheng",
+        "REUSE Compliance" =>
+          "https://api.reuse.software/info/github.com/SushyDev/nerves_system_sheng"
+      }
+    ]
   end
 
   defp nerves_package do

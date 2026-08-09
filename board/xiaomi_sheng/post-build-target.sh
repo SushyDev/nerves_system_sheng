@@ -2,14 +2,12 @@
 
 set -e
 
-# Runs on $TARGET_DIR before Buildroot packs rootfs.ext2 - the right stage to
-# add files a package already installed (post-build.sh only sees the packed image).
+# runs before rootfs.ext2 is packed - post-build.sh only sees the packed image
 
 TARGET_DIR="$1"
 
-# nerves.defconfig's linux-firmware selections are generic upstream only, so
-# fetch the real Xiaomi-sheng firmware set (WiFi/audio/BT/sensors/etc) the
-# same way the kernel source is fetched: git, at build time.
+# nerves.defconfig's linux-firmware is generic upstream only; fetch real
+# sheng firmware (wifi/audio/bt/sensors) via git, same as the kernel source
 SHENG_FW_REPO="https://github.com/ianchb/sheng-firmware.git"
 SHENG_FW_CLONE_DIR="$(mktemp -d)"
 
