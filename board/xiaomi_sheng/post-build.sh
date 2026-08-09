@@ -45,20 +45,27 @@ cat "$KERNEL_TO_USE" "$DEVICE_TREE" > "$ZIMAGE"
 # Note: DTB is concatenated into kernel payload, not passed via --dtb (which is header v2+)
 # This device's bootloader expects legacy v0 header with no separate DTB field
 #
-# earlycon=qcom_geni,0xa9c000: verified against the actual kernel tree
-# (ianchb/sm8550-mainline @ sheng-7.1.5). The console UART is serial0 = &uart7
-# (sm8550-xiaomi-sheng.dts aliases), and uart7 is `serial@a9c000` with
-# `compatible = "qcom,geni-debug-uart"` (sm8550.dtsi) - so 0xa9c000 is the
-# real MMIO base, and the earlycon driver name must be "qcom_geni" per
-# `OF_EARLYCON_DECLARE(qcom_geni, "qcom,geni-debug-uart", ...)` in
-# drivers/tty/serial/qcom_geni_serial.c. A prior version of this line used
-# earlycon=msm_geni_serial,0xa90000 - "msm_geni_serial" matches no
-# OF_EARLYCON_DECLARE name in this tree (silently ignored, so any panic
-# before the main console probes produced zero serial output), and
-# 0xa90000 isn't uart7's address at all. console=ttyMSM0 is separately
-# confirmed correct: qcom_geni_serial.c registers its uart_driver with
-# .dev_name = "ttyMSM".
-CMDLINE="root=PARTLABEL=userdata rootwait rw console=ttyMSM0,115200n8 console=ttyGS0,115200 earlycon=qcom_geni,0xa9c000 loglevel=8 usb3.dr_mode=device"
+# === USB Serial Gadget Debugging ===
+# The SM8550 can route its serial console over USB using the Linux USB Gadget framework.
+# This allows real-time debugging without a UART adapter - just connect via USB to the host PC.
+#
+# Kernel config requirements:
+#   CONFIG_USB_GADGET=y                    Enable USB gadget device mode (vs host mode)
+#   CONFIG_USB_G_SERIAL=y                  USB serial gadget function (provides /dev/ttyGS0)
+#   CONFIG_SERIAL_QCOM_GENI=y              Qualcomm GENI UART driver (SM8550 serial IP)
+#   CONFIG_SERIAL_QCOM_GENI_CONSOLE=y      Route console to GENI UARTs
+#
+# Kernel cmdline parameters:
+#   console=ttyGS0,115200                  Main kernel console → USB gadget serial at 115200 baud
+#   earlycon=qcom_geni,0xa9c000            Early boot console (before drivers load) via GENI at addr 0xa9c000
+#   loglevel=8                             Print all kernel messages (DEBUG level)
+#
+# On the host side:
+#   The device appears as /dev/ttyUSB0 (or similar) when booting into Nerves.
+#   Connect with: screen /dev/ttyUSB0 115200
+#   You'll see kernel boot messages and Erlang VM output in real-time.
+#
+CMDLINE="root=PARTLABEL=userdata rootwait rw console=ttyGS0,115200 earlycon=qcom_geni,0xa9c000 loglevel=8"
 BASE="0x00000000"
 KERNEL_OFFSET="0x00008000"
 TAGS_OFFSET="0x01e00000"
