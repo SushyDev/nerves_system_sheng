@@ -3,10 +3,8 @@
 /buildroot*
 *~
 /artifacts
-/.nerves
 /nerves-system-*
 /o
-build.log
 /_build
 /cover
 /deps
@@ -15,3 +13,7 @@ erl_crash.dump
 *.ez
 /doc
 /tests/test_output
+/boards/*/*.config
+
+# tmp
+/docs
