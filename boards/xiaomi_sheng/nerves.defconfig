@@ -92,6 +92,10 @@ BR2_PACKAGE_BUSYBOX=y
 BR2_PACKAGE_UTIL_LINUX=y
 BR2_PACKAGE_OPENSSH=y
 
+# needed on-target for NervesSheng.ABUpdate to apply real A/B OTA updates
+BR2_PACKAGE_FWUP=y
+BR2_PACKAGE_UFS_BOOT_LUN=y
+
 # needed to cross-compile nerves_uevent (netlink uevent parsing)
 BR2_PACKAGE_LIBMNL=y
 
