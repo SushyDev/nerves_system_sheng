@@ -48,12 +48,7 @@ BR2_PACKAGE_WIRELESS_REGDB=y
 
 # Every Nerves system must enable Buildroot's `erlang` package itself - not
 # on by default. Without it, ERTS_DIR is nil in nerves_env.exs.
-#
-# Version 28, not 29: target OTP major version must match the host's
-# (compile fails otherwise). Host is nix/devenv-managed OTP 28, despite
-# .tool-versions saying 29.0.4 (stale).
 BR2_PACKAGE_ERLANG=y
-BR2_PACKAGE_ERLANG_28=y
 
 # GCC 14.4.0 (Buildroot default) fails bootstrapping host-gcc-initial's
 # vectorizer ("undefined reference to vect_gimple_build"). 13.4.0 works.
