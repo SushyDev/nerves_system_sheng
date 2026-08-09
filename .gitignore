@@ -13,6 +13,7 @@ erl_crash.dump
 *.ez
 /doc
 /tests/test_output
+/.nerves
 /boards/*/*.config
 
 # tmp

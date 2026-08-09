@@ -3,6 +3,16 @@ BR2_aarch64=y
 BR2_CORTEX_A76=y
 BR2_ARM_FPU_NEON=y
 
+# board/nerves-common/skeleton was never wired up (same class of bug as the
+# busybox config below): Buildroot's own default skeleton has no /var at
+# all, no var/run -> ../run symlink, so /var/run ends up a real, persistent
+# directory instead of tmpfs-backed. Daemons that pidfile-lock under
+# /var/run (chronyd) then see stale PIDs from a previous boot match
+# whatever unrelated process now holds that PID number, and refuse to
+# start ("Another chronyd may already be running").
+BR2_ROOTFS_SKELETON_CUSTOM=y
+BR2_ROOTFS_SKELETON_CUSTOM_PATH="/nerves/env/nerves_system_sheng/board/nerves-common/skeleton"
+
 # Kernel fetched via git (Buildroot's CUSTOM_GIT downloader). Pinned to
 # sheng-7.1.5, not the newer sheng-7.1.6: matches the branch sm8550.config
 # was actually generated against (debian-sheng CI's default).
@@ -21,6 +31,10 @@ BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_7_0=y
 BR2_LINUX_KERNEL_DTS_SUPPORT=y
 BR2_LINUX_KERNEL_INTREE_DTS_NAME="qcom/sm8550-xiaomi-sheng"
 
+# local kernel fixes, applied post-extract. Absolute path - relative paths
+# resolve against Buildroot's own tree, not this br2-external one.
+BR2_LINUX_KERNEL_PATCH="/nerves/env/nerves_system_sheng/board/xiaomi_sheng/patches/linux"
+
 BR2_PACKAGE_LINUX_FIRMWARE=y
 BR2_PACKAGE_LINUX_FIRMWARE_QCOM_ADRENO=y
 BR2_PACKAGE_LINUX_FIRMWARE_QCOM_MODEM=y
@@ -30,6 +44,10 @@ BR2_PACKAGE_LINUX_FIRMWARE_QCOM_AUDIO=y
 # the device-specific set. No WCN7850 Bluetooth firmware option in this
 # Buildroot version - btqca/BT_QCOMSMD drivers are enabled but fw is a known gap.
 BR2_PACKAGE_LINUX_FIRMWARE_QUALCOMM_WCN7850=y
+
+# cfg80211 wants /lib/firmware/regulatory.db(.p7s) (CFG80211_REQUIRE_SIGNED_REGDB=y
+# in sm8550.config) - without it, boot logs "regulatory.db failed with error -2".
+BR2_PACKAGE_WIRELESS_REGDB=y
 
 # Every Nerves system must enable Buildroot's `erlang` package itself - not
 # on by default. Without it, ERTS_DIR is nil in nerves_env.exs.
@@ -109,3 +127,14 @@ BR2_PACKAGE_ALSA_UTILS_SPEAKER_TEST=y
 # UCM2 profile is applied via alsaucm, or equivalent amixer controls are set.
 BR2_PACKAGE_ALSA_UTILS_ALSAUCM=y
 BR2_PACKAGE_ALSA_UTILS_AMIXER=y
+
+# default busybox.config has CONFIG_NTPD unset, so NervesTime's ntpd
+# (needs busybox's -n -S <script> -p <server> CLI, not ntp.org's ntpd) never
+# existed on the built image. Point at nerves-common's config, which sets it.
+BR2_PACKAGE_BUSYBOX_CONFIG="/nerves/env/nerves_system_sheng/board/nerves-common/busybox.config"
+
+# chronyd is a much better NTP client than busybox ntpd (handles DHCP-provided
+# servers, real drift tracking). rootfs_overlay/usr/sbin/ntpd shims busybox
+# ntpd's CLI/report protocol on top of it so NervesTime.Ntpd can drive it
+# unmodified.
+BR2_PACKAGE_CHRONY=y

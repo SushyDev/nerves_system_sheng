@@ -1,0 +1,97 @@
+#!/bin/sh
+# busybox-ntpd CLI shim over chronyd, POSIX sh (see boot-led-blink.sh header
+# for why: no bash on this system).
+#
+# nerves_time's NervesTime.Ntpd always execs "/usr/sbin/ntpd -n -S <script>
+# -p <server> ..." expecting busybox ntpd, and learns sync status by having
+# that binary invoke <script> with a report (see nerves_time's
+# src/ntpd_script.c: argv[1] event name + freq_drift_ppm/offset/stratum/
+# poll_interval env vars, sent over $SOCKET_PATH). chronyd is far more robust
+# (DHCP-sourced servers, real drift tracking) than busybox ntpd, so this
+# drives chronyd underneath and replicates that report protocol by polling
+# `chronyc tracking`, instead of patching nerves_time itself.
+
+SCRIPT=""
+SERVERS=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -S) SCRIPT="$2"; shift 2 ;;
+    -p) SERVERS="$SERVERS $2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+
+mkdir -p /var/lib/chrony /run/chrony
+CONF=/run/chrony-shim.conf
+{
+  for s in $SERVERS; do
+    echo "server $s iburst"
+  done
+  echo "driftfile /var/lib/chrony/chrony.drift"
+  echo "makestep 1.0 3"
+} > "$CONF"
+
+# NervesTime.Ntpd starts us as soon as the app supervisor comes up, well
+# before WiFi associates/DHCP completes. chronyd only resolves "server"
+# hostnames once at startup and re-resolves failures on its own (slow)
+# schedule, so starting it before DNS works turns a ~20s WiFi join into a
+# multi-minute wait. Wait for a real server to resolve first (cap at 60s,
+# then start anyway so a dead network doesn't hang forever).
+i=0
+while [ "$i" -lt 60 ]; do
+  for s in $SERVERS; do
+    nslookup "$s" >/dev/null 2>&1 && break 2
+  done
+  i=$((i + 1))
+  sleep 1
+done
+
+# -d: stay in foreground, in this script's process group, so MuonTrap's
+# cgroup-kill (triggered by stopping this shim) also stops chronyd.
+chronyd -d -f "$CONF" &
+chrony_pid=$!
+trap 'kill $chrony_pid 2>/dev/null; exit 0' TERM INT
+
+# "none": never synced yet, still waiting on chronyd's initial measurements.
+# NervesTime.Ntpd restarts us on any "unsync" report (busybox ntpd semantics:
+# sync was lost after being acquired). Reporting "unsync" while still
+# acquiring the first sync would restart chronyd before it ever finishes,
+# forever - so stay quiet ("none") until sync is acquired at least once.
+last_state="none"
+while kill -0 "$chrony_pid" 2>/dev/null; do
+  sleep 5
+
+  tracking=$(chronyc tracking 2>/dev/null) || continue
+  [ -z "$tracking" ] && continue
+
+  stratum=$(echo "$tracking" | awk -F': ' '/^Stratum/ {print $2}')
+  offset=$(echo "$tracking" | awk -F': ' '/^Last offset/ {print $2}' | awk '{print $1}')
+  leap=$(echo "$tracking" | awk -F': ' '/^Leap status/ {print $2}')
+
+  case "$stratum" in
+    ''|*[!0-9]*) stratum=16 ;;
+  esac
+
+  if [ "$leap" = "Not synchronised" ] || [ "$stratum" -eq 0 ] || [ "$stratum" -ge 16 ]; then
+    case "$last_state" in
+      stratum|periodic) event="unsync" ;;
+      *) event="" ;;
+    esac
+  elif [ "$last_state" = "none" ] || [ "$last_state" = "unsync" ]; then
+    event="stratum"
+  else
+    event="periodic"
+  fi
+
+  [ -z "$event" ] && continue
+
+  offset="${offset:-0}" stratum="$stratum" poll_interval=64 freq_drift_ppm=0 "$SCRIPT" "$event"
+  last_state="$event"
+done
+
+# Reached only if chronyd died on its own (the TERM/INT trap above always
+# exits 0 first). NervesTime.Ntpd's :EXIT handler ignores a "normal" (exit 0)
+# report as self-initiated and never restarts us - so an unexpected chronyd
+# death must exit non-zero here, or NTP silently stops forever until reboot.
+exit 1
