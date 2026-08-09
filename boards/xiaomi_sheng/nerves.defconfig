@@ -12,7 +12,16 @@ BR2_cortex_a76=y
 BR2_ROOTFS_SKELETON_CUSTOM=y
 BR2_ROOTFS_SKELETON_CUSTOM_PATH="/nerves/env/nerves_system_sheng/board/nerves-common/skeleton"
 
-# Kernel fetched via git (Buildroot's CUSTOM_GIT downloader).
+# Kernel fetched via git (Buildroot's CUSTOM_GIT downloader). Bumped from
+# sheng-7.1.5 to sheng-7.1.7. The key fix is in ath12k/pci.c (landed in
+# 7.1.6): the SOC global reset sequence gained a posted-write flush
+# (read-back after the reset register write) that 7.1.5 lacks - without it
+# the write can still be in-flight when the driver's next delay starts,
+# understating the actual reset pulse width. Plausible cause of the WCN7850
+# hanging forever at "Wait for device to enter SBL or Mission mode"
+# (confirmed reproducible on hardware). 7.1.7 additionally carries
+# display (DRM/DSI/panel) and USB (dwc3) changes on top of 7.1.6 - no
+# further WiFi-relevant fixes, just picked up along with the version bump.
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_CUSTOM_GIT=y
 BR2_LINUX_KERNEL_CUSTOM_REPO_URL="https://github.com/ianchb/sm8550-mainline.git"
@@ -92,9 +101,24 @@ BR2_PACKAGE_BUSYBOX=y
 BR2_PACKAGE_UTIL_LINUX=y
 BR2_PACKAGE_OPENSSH=y
 
+# replaces erl's default heart port with one that drives the hw watchdog +
+# supports NervesSheng.ABUpdate's revert path (rel/vm.args.eex already sets -heart)
+BR2_PACKAGE_NERVES_HEART=y
+
 # needed on-target for NervesSheng.ABUpdate to apply real A/B OTA updates
 BR2_PACKAGE_FWUP=y
 BR2_PACKAGE_UFS_BOOT_LUN=y
+
+# resize2fs/tune2fs, run on-target by NervesSheng.DataMount to grow the data
+# partition's filesystem to its full size and add back the journal -
+# fastboot's own client-side sparse re-encoding corrupts the journal on this
+# device's ABL when transferred, so the shipped data.img is deliberately a
+# small journal-less bootstrap; the real size/journal only ever get set via
+# local device I/O, never over USB.
+BR2_PACKAGE_E2FSPROGS=y
+BR2_PACKAGE_E2FSPROGS_RESIZE2FS=y
+BR2_PACKAGE_UTIL_LINUX_LIBUUID=y
+BR2_PACKAGE_UTIL_LINUX_LIBBLKID=y
 
 # needed to cross-compile nerves_uevent (netlink uevent parsing)
 BR2_PACKAGE_LIBMNL=y

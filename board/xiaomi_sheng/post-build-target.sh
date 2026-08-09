@@ -19,6 +19,16 @@ rm -rf "$SHENG_FW_CLONE_DIR/.git"
 cp -a "$SHENG_FW_CLONE_DIR/." "$TARGET_DIR/lib/firmware/"
 rm -rf "$SHENG_FW_CLONE_DIR"
 
+# ath12k_wifi7 on this exact device (confirmed by the community
+# Xiaomi-pad-6s-pro-Linux port's fix_wifi_firmware helper) doesn't do the
+# usual board-2.bin multi-variant lookup - it needs a flat board.bin. Without
+# it, the WCN7850 hangs forever at "Wait for device to enter SBL or Mission
+# mode" (confirmed on hardware - reproduced twice, 30+s with no timeout).
+ATH12K_FW_DIR="$TARGET_DIR/lib/firmware/ath12k/WCN7850/hw2.0"
+if [ -f "$ATH12K_FW_DIR/board-2.bin" ]; then
+    cp "$ATH12K_FW_DIR/board-2.bin" "$ATH12K_FW_DIR/board.bin"
+fi
+
 echo "✓ Device-specific firmware installed to \$TARGET_DIR/lib/firmware"
 
 # rootfs_overlay copy doesn't preserve the 600 this needs - erlang's :ssh
