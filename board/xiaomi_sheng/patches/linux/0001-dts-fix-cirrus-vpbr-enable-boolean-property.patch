@@ -1,0 +1,74 @@
+From 09d1248f7ea778a879e62bc1b4f3b73111d3ae0e Mon Sep 17 00:00:00 2001
+From: dev <dev@localhost>
+Date: Sun, 9 Aug 2026 13:06:40 +0200
+Subject: [PATCH] dts: fix cirrus,vpbr-enable boolean property
+
+DT boolean properties must have no value - a bare property name means
+true. All six cs35l43 amp nodes wrote 'cirrus,vpbr-enable = <1>;'
+instead, which the kernel's OF core flags every boot:
+  Read of boolean property 'cirrus,vpbr-enable' with a value.
+
+Cosmetic warning only (OF core still treats any presence as true), but
+fix it to match the actual binding.
+---
+ arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dts | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dts b/arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dts
+index 6251be814..0c419d29d 100644
+--- a/arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dts
++++ b/arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dts
+@@ -1079,7 +1079,7 @@ cs35l43_trl: cs35l43@40 {
+ 		cirrus,vpbr-atk-rate = <0>;
+ 		cirrus,vpbr-wait = <0>;
+ 		cirrus,vpbr-rel-rate = <0>;
+-		cirrus,vpbr-enable = <1>;
++		cirrus,vpbr-enable;
+ 		cirrus,gpio2-src-sel = <4>;
+ 		cirrus,asp-sdout-hiz = <3>;
+ 		cirrus,bst-ipk-ma = <4000>;
+@@ -1100,7 +1100,7 @@ cs35l43_tlh: cs35l43@41 {
+ 		cirrus,vpbr-atk-rate = <0>;
+ 		cirrus,vpbr-wait = <0>;
+ 		cirrus,vpbr-rel-rate = <0>;
+-		cirrus,vpbr-enable = <1>;
++		cirrus,vpbr-enable;
+ 		cirrus,gpio2-src-sel = <4>;
+ 		cirrus,asp-sdout-hiz = <3>;
+ 		cirrus,bst-ipk-ma = <4000>;
+@@ -1121,7 +1121,7 @@ cs35l43_tll: cs35l43@42 {
+ 		cirrus,vpbr-atk-rate = <0>;
+ 		cirrus,vpbr-wait = <0>;
+ 		cirrus,vpbr-rel-rate = <0>;
+-		cirrus,vpbr-enable = <1>;
++		cirrus,vpbr-enable;
+ 		cirrus,gpio2-src-sel = <4>;
+ 		cirrus,asp-sdout-hiz = <3>;
+ 		cirrus,bst-ipk-ma = <4000>;
+@@ -1147,7 +1147,7 @@ cs35l43_blh: cs35l43@40 {
+ 		cirrus,vpbr-atk-rate = <0>;
+ 		cirrus,vpbr-wait = <0>;
+ 		cirrus,vpbr-rel-rate = <0>;
+-		cirrus,vpbr-enable = <1>;
++		cirrus,vpbr-enable;
+ 		cirrus,gpio2-src-sel = <4>;
+ 		cirrus,asp-sdout-hiz = <3>;
+ 		cirrus,bst-ipk-ma = <4000>;
+@@ -1168,7 +1168,7 @@ cs35l43_bll: cs35l43@41 {
+ 		cirrus,vpbr-atk-rate = <0>;
+ 		cirrus,vpbr-wait = <0>;
+ 		cirrus,vpbr-rel-rate = <0>;
+-		cirrus,vpbr-enable = <1>;
++		cirrus,vpbr-enable;
+ 		cirrus,gpio2-src-sel = <4>;
+ 		cirrus,asp-sdout-hiz = <3>;
+ 		cirrus,bst-ipk-ma = <4000>;
+@@ -1189,7 +1189,7 @@ cs35l43_brl: cs35l43@42 {
+ 		cirrus,vpbr-atk-rate = <0>;
+ 		cirrus,vpbr-wait = <0>;
+ 		cirrus,vpbr-rel-rate = <0>;
+-		cirrus,vpbr-enable = <1>;
++		cirrus,vpbr-enable;
+ 		cirrus,gpio2-src-sel = <4>;
+ 		cirrus,asp-sdout-hiz = <3>;
+ 		cirrus,bst-ipk-ma = <4000>;
