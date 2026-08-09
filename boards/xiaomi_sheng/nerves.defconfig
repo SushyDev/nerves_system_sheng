@@ -49,6 +49,7 @@ BR2_PACKAGE_WIRELESS_REGDB=y
 # Every Nerves system must enable Buildroot's `erlang` package itself - not
 # on by default. Without it, ERTS_DIR is nil in nerves_env.exs.
 BR2_PACKAGE_ERLANG=y
+BR2_PACKAGE_ERLANG_29=y
 
 # GCC 14.4.0 (Buildroot default) fails bootstrapping host-gcc-initial's
 # vectorizer ("undefined reference to vect_gimple_build"). 13.4.0 works.
