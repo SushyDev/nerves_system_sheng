@@ -55,6 +55,7 @@ defmodule Nerves.System.Sheng.Mixfile do
     [
       "board",
       "boards",
+      "package",
       "patches",
       "Config.in",
       "external.desc",

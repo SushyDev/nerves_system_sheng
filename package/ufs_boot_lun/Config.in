@@ -1,0 +1,6 @@
+config BR2_PACKAGE_UFS_BOOT_LUN
+	bool "ufs_boot_lun"
+	help
+	  Reads/writes bBootLunEn (which UFS boot LUN ABL reads at power-on)
+	  via the kernel's UFS BSG ioctl. Needed alongside the GPT write for
+	  real Qualcomm-ABL A/B - see fwup.conf.
