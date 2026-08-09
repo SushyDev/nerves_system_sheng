@@ -14,20 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Vendored verbatim from references/debian-sheng/mkbootimg - the same
-# mkbootimg copy used by that project's CI to build the actual known-good,
-# flash-tested boot.img for this device (see .github/workflows/rootfs.yml,
-# "[Custom] Generate boot.img" step, and the sheng-kernel_build.sh reference
-# script it mirrors). Matching their exact tool, not just their invocation
-# flags, minimizes divergence from a build that's proven to boot on real
-# hardware.
+# Vendored verbatim from references/debian-sheng/mkbootimg (same tool their
+# CI uses for a known-good, flash-tested boot.img for this device).
 #
-# Why this file exists at all: the real Nerves build runs inside
-# support/docker/nerves_system_br/Dockerfile, which does not install
-# `mkbootimg`/`android-tools`. post-build.sh previously fell back silently
-# to a headerless boot.img when the external `mkbootimg` binary wasn't on
-# PATH. python3 is always available (it's a hard Buildroot/Docker
-# dependency), so invoking this script removes that failure mode entirely.
+# Build container has no `mkbootimg`/`android-tools`; python3 always does.
 
 """Creates the boot image."""
 

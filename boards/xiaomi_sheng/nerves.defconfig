@@ -3,23 +3,9 @@ BR2_aarch64=y
 BR2_CORTEX_A76=y
 BR2_ARM_FPU_NEON=y
 
-# Linux Kernel: fetched remotely straight from GitHub via Buildroot's native git
-# downloader (verified against buildroot-2026.05.1/linux/Config.in - CUSTOM_GIT
-# is a Kconfig `choice` entry that must be =y for REPO_URL/REPO_VERSION to take
-# effect). Confirmed via a local `make defconfig` dry run (no cross toolchain
-# needed) that this resolves correctly: BR2_LINUX_KERNEL_CUSTOM_GIT=y,
-# CUSTOM_REPO_URL/VERSION set as expected. The first real build attempt did
-# reach `git fetch origin` successfully - it was killed prematurely assuming
-# it had hung, when a full (non-shallow) kernel clone can just take a while.
-#
-# Branch pinned to sheng-7.1.5, not the newer sheng-7.1.6: this is the branch
-# the actively-maintained references/debian-sheng CI pipeline builds and
-# validates by default (confirmed both branches exist upstream via `git
-# ls-remote`), with a matching sm8550.config generated from a real successful
-# build against this exact tree (see sm8550.config's own comment below). Our
-# previous 7.1.6 pin was paired with a sm8550.config that was actually
-# resolved against a stale 7.1.3 tree (visible in its own header comment) -
-# a real version-drift bug, not just an upgrade opportunity.
+# Kernel fetched via git (Buildroot's CUSTOM_GIT downloader). Pinned to
+# sheng-7.1.5, not the newer sheng-7.1.6: matches the branch sm8550.config
+# was actually generated against (debian-sheng CI's default).
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_CUSTOM_GIT=y
 BR2_LINUX_KERNEL_CUSTOM_REPO_URL="https://github.com/ianchb/sm8550-mainline.git"
@@ -27,176 +13,99 @@ BR2_LINUX_KERNEL_CUSTOM_REPO_VERSION="sheng-7.1.5"
 BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
 BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="/nerves/env/nerves_system_sheng/boards/xiaomi_sheng/sm8550.config"
 
-# Kernel builds with the standard GCC 13.4.0 toolchain configured below.
-# LLVM/Clang was tried and caused boot failures - reverted, no longer an
-# available option (the patch adding it was removed).
+# LLVM/Clang was tried here and caused boot failures - reverted.
 
-# Linux Headers: standard official 7.0.x headers (kernel.org), independent of our
-# custom kernel source. Verified via the same local dry run - this is the
-# well-trodden Buildroot path with no custom URL/git resolution involved.
 BR2_KERNEL_HEADERS_7_0=y
 BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_7_0=y
 
-# Device Tree
 BR2_LINUX_KERNEL_DTS_SUPPORT=y
 BR2_LINUX_KERNEL_INTREE_DTS_NAME="qcom/sm8550-xiaomi-sheng"
 
-# Firmware
 BR2_PACKAGE_LINUX_FIRMWARE=y
 BR2_PACKAGE_LINUX_FIRMWARE_QCOM_ADRENO=y
 BR2_PACKAGE_LINUX_FIRMWARE_QCOM_MODEM=y
 BR2_PACKAGE_LINUX_FIRMWARE_QCOM_AUDIO=y
 # WiFi (ath12k, PCIe transport - see CONFIG_ATH12K_PCI in sm8550.config).
-# Installs ath12k/WCN7850/hw2.0/{board-2.bin,amss.bin,m3.bin}, generic
-# upstream calibration data (not Xiaomi-sheng-specific). post-build.sh copies
-# board-2.bin -> board.bin as a known ath12k workaround for boards whose
-# variant isn't in the generic multi-board container; may still need a
-# device-specific board-2.bin later if this generic one doesn't match.
-# NOTE: this Buildroot version (2026.05.1) has no Bluetooth firmware option
-# for WCN7850 at all (checked package/linux-firmware/Config.in) - btqca/
-# BT_QCOMSMD kernel drivers are enabled but Bluetooth firmware is a known gap.
+# Generic upstream calibration data; post-build-target.sh overwrites it with
+# the device-specific set. No WCN7850 Bluetooth firmware option in this
+# Buildroot version - btqca/BT_QCOMSMD drivers are enabled but fw is a known gap.
 BR2_PACKAGE_LINUX_FIRMWARE_QUALCOMM_WCN7850=y
 
-# Erlang/OTP: builds the cross-compiled ERTS that Nerves needs for ERTS_DIR
-# (deps/nerves_system_br/nerves_env.exs) and NIF compilation. This was
-# missing entirely - none of Nerves' own package glue (Config.in sourcing
-# erlinit/nerves_heart/etc.) enables the upstream Buildroot `erlang` package
-# automatically; every Nerves system must turn it on itself. Its absence is
-# the root cause of the long-standing "ERTS_DIR is nil" crash in
-# nerves_env.exs - a truly fresh, non-cached build still lacked
-# staging/usr/lib/erlang/erts-* without this.
+# Every Nerves system must enable Buildroot's `erlang` package itself - not
+# on by default. Without it, ERTS_DIR is nil in nerves_env.exs.
 #
-# Version 28, NOT 29: Nerves requires the target OTP's MAJOR version to
-# match the host's (used to compile/release the app) or app compilation
-# fails ("Major version mismatch between host and target Erlang/OTP").
-# nerves_system_sheng/.tool-versions says "erlang 29.0.4" but that's stale -
-# this project's actual host Erlang is nix/devenv-managed (devenv.nix
-# `languages.erlang.enable`) and is OTP 28, confirmed via `erl
-# erlang:system_info(otp_release)`. Matching the target to the real host is
-# lower-risk than changing the nix-managed host toolchain.
+# Version 28, not 29: target OTP major version must match the host's
+# (compile fails otherwise). Host is nix/devenv-managed OTP 28, despite
+# .tool-versions saying 29.0.4 (stale).
 BR2_PACKAGE_ERLANG=y
 BR2_PACKAGE_ERLANG_28=y
 
-# Toolchain
-# GCC 14.4.0 (this Buildroot's default) fails to link host-gcc-initial with
-# "undefined reference to vect_gimple_build/vect_pattern_recog" while
-# bootstrapping its own vectorizer - a GCC 14.4.0 build issue, not something
-# our config controls. GCC 13.4.0 is a fully supported alternative (Cortex-A76
-# only requires BR2_ARCH_NEEDS_GCC_AT_LEAST_8, so 13.x is not blocked).
+# GCC 14.4.0 (Buildroot default) fails bootstrapping host-gcc-initial's
+# vectorizer ("undefined reference to vect_gimple_build"). 13.4.0 works.
 BR2_TOOLCHAIN_BUILDROOT=y
 BR2_GCC_VERSION_13_X=y
 
-# Build optimization
 BR2_CCACHE=y
 
-# RNG Tools notice
 BR2_PACKAGE_NERVES_CONFIG_ACCEPT_RNG_NOTICE=y
 
-# Root filesystem (ext4, 1GB default; flashed directly to Android "userdata" fastboot partition)
-# Kernel cmdline must match: root=PARTLABEL=userdata (set in post-build.sh)
-#
-# ext4, not plain ext2: references/debian-sheng's own CI (.github/workflows/rootfs.yml,
-# "Create RootFS Image" step) uses `mkfs.ext4` for the actual proven-working rootfs.img
-# for this exact device. BR2_TARGET_ROOTFS_EXT2 is Buildroot's filesystem generator
-# (legacy Kconfig name covering ext2/3/4); BR2_TARGET_ROOTFS_EXT2_4 selects the ext4
-# variant to match that reference instead of Buildroot's plain-ext2 default.
+# Flashed directly to Android "userdata" fastboot partition; cmdline must
+# match root=PARTLABEL=userdata (post-build.sh). ext4, not plain ext2, to
+# match debian-sheng's proven-working rootfs.img (EXT2_4 selects the ext4
+# variant of Buildroot's legacy-named EXT2 filesystem generator).
 BR2_TARGET_ROOTFS_EXT2=y
 BR2_TARGET_ROOTFS_EXT2_4=y
 BR2_TARGET_ROOTFS_EXT2_SIZE="1G"
 
-# Post-image script to create fastboot boot.img and rootfs.img.
-# NOTE: this was previously named BR2_ROOTFS_POST_SCRIPT, which is not a real
-# Buildroot Kconfig symbol (verified against buildroot-2026.05.1/system/Config.in
-# - the actual options are BR2_ROOTFS_POST_BUILD_SCRIPT, which runs on
-# $TARGET_DIR before images are packed, and BR2_ROOTFS_POST_IMAGE_SCRIPT, which
-# runs on $BINARIES_DIR after images are packed). Since post-build.sh consumes
-# $BINARIES_DIR and post-processes the already-built Image/DTB/rootfs.ext2 into
-# boot.img/rootfs.img, POST_IMAGE_SCRIPT is the correct hook. The wrong/unknown
-# symbol name was silently ignored by Buildroot, which is why the script only
-# ever worked when run manually after the build (see nerves_sheng_build_complete
-# memory).
+# Post-image script: runs on $BINARIES_DIR after images are packed, builds
+# fastboot boot.img/rootfs.img. (Not POST_SCRIPT - not a real Kconfig symbol.)
 BR2_ROOTFS_POST_IMAGE_SCRIPT="/nerves/env/nerves_system_sheng/board/xiaomi_sheng/post-build.sh"
 
-# Post-build script to fix up $TARGET_DIR before it's packed into rootfs.ext2
-# (ath12k board-2.bin -> board.bin workaround, see post-build-target.sh).
+# Post-build script: fixes up $TARGET_DIR before it's packed into rootfs.ext2.
 BR2_ROOTFS_POST_BUILD_SCRIPT="/nerves/env/nerves_system_sheng/board/xiaomi_sheng/post-build-target.sh"
 
-# Rootfs overlay: Cirrus CS35L43 speaker-amp firmware + ALSA UCM profiles,
-# vendored from references/Xiaomi-pad-6s-pro-Linux (community sheng port).
-# Kernel-side codec drivers (CS35L43, WCD938X) were already enabled in
-# sm8550.config; this overlay supplies the firmware blobs + mixer routing
-# userspace needs to actually use them.
+# CS35L43 speaker-amp firmware + ALSA UCM profiles, vendored from
+# references/Xiaomi-pad-6s-pro-Linux. Codec drivers already in sm8550.config.
 BR2_ROOTFS_OVERLAY="/nerves/env/nerves_system_sheng/board/xiaomi_sheng/rootfs_overlay"
 
-# erlinit itself was never enabled at all - confirmed via `grep
-# ^BR2_PACKAGE_ERLINIT` on the real resolved .config coming up empty, and no
-# build/erlinit-* directory existing in the Buildroot output. This is the
-# actual root cause of /sbin/init being busybox's symlink: there was no
-# erlinit build to ever compete for that path in the first place. Depends on
-# BR2_PACKAGE_ERLANG (already enabled above).
+# erlinit was never enabled - root cause of /sbin/init being busybox's symlink.
 BR2_PACKAGE_ERLINIT=y
 
-# Init system: "none" (not BusyBox's own init, which is Buildroot's default
-# choice). Belt-and-suspenders alongside enabling erlinit above: Buildroot's
-# default skeleton-init-sysv installs /sbin/init -> ../bin/busybox itself,
-# and erlinit.mk's own comment says it relies on being installed *after*
-# busybox to overwrite that path - BR2_INIT_NONE removes any ambiguity by
-# telling Buildroot not to manage /sbin/init itself at all.
+# Buildroot's default init installs /sbin/init -> busybox; INIT_NONE stops it
+# from managing /sbin/init so erlinit's own install can take that path.
 BR2_INIT_NONE=y
 
-# System utilities
 BR2_PACKAGE_BUSYBOX=y
 BR2_PACKAGE_UTIL_LINUX=y
 BR2_PACKAGE_OPENSSH=y
 
-# libmnl: needed to cross-compile nerves_uevent's C code (netlink uevent
-# parsing) - nerves_pack pulls in nerves_uevent as a dependency.
+# needed to cross-compile nerves_uevent (netlink uevent parsing)
 BR2_PACKAGE_LIBMNL=y
 
-# libnl: needed to cross-compile vintage_net_wifi's C code (nl80211/netlink
-# wifi control) - nerves_pack pulls in vintage_net_wifi as a dependency.
+# needed to cross-compile vintage_net_wifi (nl80211/netlink wifi control)
 BR2_PACKAGE_LIBNL=y
 
-# wpa_supplicant: VintageNetWiFi shells out to this binary to actually
-# associate with WPA-PSK networks - it was never enabled, so wlan0
-# configuration could never connect regardless of the ath12k driver/
-# firmware being present. NL80211 variant since ath12k is a modern
-# cfg80211/mac80211 driver, not the legacy wext interface.
+# VintageNetWiFi shells out to wpa_supplicant to associate WPA-PSK; NL80211
+# variant since ath12k is cfg80211/mac80211, not legacy wext.
 #
-# CTRL_IFACE and WPS: Buildroot's default wpa_supplicant build config
-# comments both out (verified in deps/nerves_system_br/buildroot-2026.05.1/
-# package/wpa_supplicant/wpa_supplicant.config - CONFIG_CTRL_IFACE and
-# CONFIG_WPS are both `#`-commented). VintageNetWiFi's generated
-# wpa_supplicant.conf.wlan0 always includes `ctrl_interface=...` (its
-# control socket, needed for wpa_cli/status queries) and
-# `wps_cred_processing=1` unconditionally - without these two Buildroot
-# options, wpa_supplicant rejects the file at startup with "unknown global
-# field" for both lines and exits 255 before ever attempting to associate,
-# which VintageNet then silently retries forever with no useful error
-# surfaced (only the bare exit status, not wpa_supplicant's own stderr).
+# CTRL_IFACE and WPS: off by default in Buildroot's wpa_supplicant config, but
+# VintageNetWiFi's generated conf always sets ctrl_interface= and
+# wps_cred_processing=1 - without these, wpa_supplicant rejects the file at
+# startup and VintageNet retries forever with no useful error surfaced.
 BR2_PACKAGE_WPA_SUPPLICANT=y
 BR2_PACKAGE_WPA_SUPPLICANT_NL80211=y
 BR2_PACKAGE_WPA_SUPPLICANT_CTRL_IFACE=y
 BR2_PACKAGE_WPA_SUPPLICANT_WPS=y
 
-# Audio: ALSA library + UCM (Use Case Manager) support for the CS35L43/WCD938X
-# mixer routing profiles installed via the rootfs overlay above.
-# ALSA utilities provide aplay, speaker-test, and other tools for audio playback.
-# BR2_PACKAGE_ALSA_UTILS_APLAY enables aplay (audio player).
-# BR2_PACKAGE_ALSA_UTILS_SPEAKER_TEST enables speaker-test (audio generator).
-# Both are needed for boot-beep.sh audio confirmation.
+# ALSA + UCM for the CS35L43/WCD938X mixer routing profiles (rootfs overlay
+# above). aplay + speaker-test needed for boot-beep.sh.
 BR2_PACKAGE_ALSA_LIB=y
 BR2_PACKAGE_ALSA_LIB_UCM=y
 BR2_PACKAGE_ALSA_UTILS=y
 BR2_PACKAGE_ALSA_UTILS_APLAY=y
 BR2_PACKAGE_ALSA_UTILS_SPEAKER_TEST=y
 
-# alsaucm/amixer: the raw hw:0,0 PCM device rejects playback with "no
-# backend DAIs enabled ... missing ALSA mixer-based routing or UCM profile"
-# (confirmed live via speaker-test) - the DAPM widget path between the
-# MultiMedia PCM and the physical CS35L43/WCD938X codecs isn't connected by
-# default and needs the vendored UCM2 profile (rootfs_overlay/usr/share/
-# alsa/ucm2/...) applied via alsaucm, or the equivalent amixer controls set
-# directly, before any audio can actually flow.
+# raw hw:0,0 rejects playback ("no backend DAIs enabled") until the vendored
+# UCM2 profile is applied via alsaucm, or equivalent amixer controls are set.
 BR2_PACKAGE_ALSA_UTILS_ALSAUCM=y
 BR2_PACKAGE_ALSA_UTILS_AMIXER=y
