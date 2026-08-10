@@ -2,23 +2,20 @@
 #
 # If these are non-proprietary, please consider contributing them back to
 # Nerves or Buildroot.
-
-# Sourced here, not nerves_system_sheng/Config.in: the Docker build_runner
-# invokes create-build.sh from deps/nerves_system_br's own copy (mounted at
-# /nerves/env/platform), whose own script-relative NERVES_SYSTEM/BR2_EXTERNAL
-# resolution points at that shared platform tree - not this project's. Both
-# trees register the same "NERVES" external name (see both external.desc
-# files), so shared packages like boardid still resolve (from the platform's
-# own copy), but packages that only exist here (ab_ops, ufs_boot_lun) never
-# get sourced from nerves_system_sheng/Config.in at all - confirmed via the
-# actual generated .config: boardid appeared as a real, recognized-but-
-# disabled symbol, ab_ops/ufs_boot_lun didn't exist in it at all, not even
-# as "not set". $NERVES_DEFCONFIG_DIR/Config.in (this file) is different -
-# create-build.sh derives that path from the defconfig argument itself, not
-# its own script location, so it reliably resolves to this board dir
-# regardless of the platform-vs-project BR2_EXTERNAL ambiguity above.
-# Not $BR2_EXTERNAL_NERVES_PATH: same ambiguity as above, so it'd point at
-# the platform tree here too - use $NERVES_DEFCONFIG_DIR instead, proven
-# reliable since it's literally how Kconfig found this very file.
-source "$NERVES_DEFCONFIG_DIR/../../package/ab_ops/Config.in"
-source "$NERVES_DEFCONFIG_DIR/../../package/ufs_boot_lun/Config.in"
+#
+# ab_ops/ufs_boot_lun are NOT sourced from here (or from
+# nerves_system_sheng/Config.in) - deeper than a Config.in sourcing
+# ambiguity, Buildroot's actual *.mk package discovery (separate from
+# Kconfig symbol sourcing) only ever scans BR2_EXTERNAL_DIRS, and the
+# Docker build_runner's generated .br2-external.mk registers ONLY
+# /nerves/env/platform (deps/nerves_system_br) as external tree "NERVES" -
+# nerves_system_sheng's own package/ is never scanned for *.mk at all,
+# confirmed via the generated .br2-external.mk directly. A Config.in-only
+# sourcing trick (tried here first) got the Kconfig symbol recognized but
+# never actually built - zero trace in a full build log. Real fix: these
+# two packages' Config.in/.mk/src are duplicated into
+# deps/nerves_system_br/package/{ab_ops,ufs_boot_lun}/ (both the root
+# app's copy and this nested one), sourced from deps/nerves_system_br/
+# Config.in instead. Keep both copies in sync by hand if either changes -
+# not ideal, but deps/nerves_system_br isn't something this project
+# controls the discovery mechanism for.
