@@ -1,0 +1,6 @@
+config BR2_PACKAGE_AB_OPS
+	bool "ab_ops"
+	help
+	  Standalone status/revert/validate helper for fwup-ops.conf - fwup
+	  can't branch on which slot is active or feed a subprocess's output
+	  back into info(), so this does it natively. See package source.

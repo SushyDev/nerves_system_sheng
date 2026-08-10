@@ -94,6 +94,9 @@ BR2_PACKAGE_NERVES_HEART=y
 BR2_PACKAGE_FWUP=y
 BR2_PACKAGE_UFS_BOOT_LUN=y
 
+# status/revert/validate helper for fwup-ops.conf - see package/ab_ops/
+BR2_PACKAGE_AB_OPS=y
+
 # resize2fs/tune2fs: NervesSheng.DataMount grows data.img + adds back the
 # journal on-target. Shipped data.img is a small journal-less bootstrap
 # because fastboot's sparse re-encoding corrupts the journal on this ABL.
