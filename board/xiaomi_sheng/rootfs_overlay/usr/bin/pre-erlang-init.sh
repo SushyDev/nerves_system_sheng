@@ -1,9 +1,9 @@
 #!/bin/sh
-# erlinit -c (pre-Erlang), deliberately separate from load-hw-modules.sh:
-# nerves_heart opens /dev/watchdog0 during its own init, before any Elixir
-# code runs, so qcom_wdt must be loaded before erlinit starts the release -
-# confirmed on hardware (dmesg: "nerves_heart: can't open '/dev/watchdog0'"
-# at 13s, well before HardwareModules.load!/0 ever got a chance to run its
-# post-Erlang modprobe). Unlike ath12k, qcom_wdt has no known hang risk, so
-# it's safe here even though the WiFi/audio modules deliberately aren't.
+# erlinit -c: synchronous, blocks Erlang - keep fast, no hang risk here.
+
+# nerves_heart needs /dev/watchdog0 before Elixir starts.
 modprobe qcom_wdt 2>/dev/null
+
+# ABL decrements GPT retry-count every boot regardless of Erlang - reset it
+# here so a single Erlang hang can't burn a retry (see nerves_sheng_edl_brick_2026_08_11.md).
+ab_ops validate 2>/dev/null
