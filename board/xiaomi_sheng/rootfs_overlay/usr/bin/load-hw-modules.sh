@@ -21,3 +21,8 @@ modprobe ath12k 2>/dev/null
 modprobe ath12k_wifi7 2>/dev/null
 
 modprobe snd-soc-qcom-sdw 2>/dev/null
+
+# CONFIG_QCOM_WDT is a module (not built-in) - without this, /dev/watchdog
+# never exists and nerves_heart only does BEAM-level heartbeat monitoring,
+# not real hardware-watchdog petting that survives a kernel hang/panic.
+modprobe qcom_wdt 2>/dev/null
