@@ -1,2 +1,3 @@
-use Toolshed
 NervesMOTD.print()
+
+import Toolshed
