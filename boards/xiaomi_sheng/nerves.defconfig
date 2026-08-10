@@ -56,6 +56,12 @@ BR2_GCC_VERSION_13_X=y
 
 BR2_CCACHE=y
 
+# The parent toggle itself was never actually enabled (confirmed via a real
+# generated .config: "# BR2_PACKAGE_NERVES_CONFIG is not set") - only its
+# RNG-notice sub-option was. Its select clauses (boardid, uboot-tools,
+# host-fwup, squashfs) never fired as a result; erlinit/nerves_heart/fwup
+# stayed working only because those are also independently =y'd below.
+BR2_PACKAGE_NERVES_CONFIG=y
 BR2_PACKAGE_NERVES_CONFIG_ACCEPT_RNG_NOTICE=y
 
 # Flashed to Android "userdata" fastboot partition, root=PARTLABEL=userdata
