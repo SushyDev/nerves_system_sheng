@@ -27,6 +27,10 @@
 #define RETRY_MAX 0x38
 #define SUCCESS_BIT 0x40
 
+#define GPT_HEADER_OFFSET 4096
+#define GPT_DISK_GUID_OFFSET (GPT_HEADER_OFFSET + 56)
+#define GPT_DISK_GUID_LEN 16
+
 #define GPT_BLOB_DIR "/usr/share/nerves_sheng/gpt"
 #define SYS_BLOCK "/sys/class/block"
 
@@ -112,6 +116,22 @@ static int read_byte(const char *disk, off_t offset, unsigned char *out)
     ssize_t n = pread(fd, out, 1, offset);
     close(fd);
     if (n != 1) {
+        fprintf(stderr, "pread at offset %lld failed\n", (long long)offset);
+        return -1;
+    }
+    return 0;
+}
+
+static int read_bytes(const char *path, off_t offset, unsigned char *out, size_t len)
+{
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        perror("open");
+        return -1;
+    }
+    ssize_t n = pread(fd, out, len, offset);
+    close(fd);
+    if (n != (ssize_t)len) {
         fprintf(stderr, "pread at offset %lld failed\n", (long long)offset);
         return -1;
     }
@@ -276,14 +296,43 @@ static int cmd_revert(void)
     return 0;
 }
 
+/* disk_guid only (not the whole table - unlike PartitionMigration's
+ * userdata check, raw_write/revert overwrite the whole blob anyway).
+ * Catches a stale gpt-primary-slot-*.bin before it's written - see
+ * nerves_sheng_edl_brick_2026_08_11.md. */
+static int cmd_verify_boot_gpt(void)
+{
+    char disk[64];
+    if (resolve_disk("boot_a", disk, sizeof(disk)) != 0)
+        return 1;
+
+    unsigned char live_guid[GPT_DISK_GUID_LEN];
+    if (read_bytes(disk, GPT_DISK_GUID_OFFSET, live_guid, sizeof(live_guid)) != 0)
+        return 1;
+
+    char blob_path[256];
+    snprintf(blob_path, sizeof(blob_path), "%s/gpt-primary-slot-a.bin", GPT_BLOB_DIR);
+    unsigned char blob_guid[GPT_DISK_GUID_LEN];
+    if (read_bytes(blob_path, GPT_DISK_GUID_OFFSET, blob_guid, sizeof(blob_guid)) != 0)
+        return 1;
+
+    if (memcmp(live_guid, blob_guid, sizeof(live_guid)) != 0) {
+        fprintf(stderr, "verify-boot-gpt: disk_guid mismatch - blob is stale, recapture it\n");
+        return 1;
+    }
+
+    return 0;
+}
+
 static void usage(const char *prog)
 {
     fprintf(stderr,
             "Usage:\n"
-            "  %s status     Emit fwup --framing WN-frame with the active slot\n"
-            "  %s validate   Mark the active slot successful, reset its retry count\n"
-            "  %s revert     Switch GPT + boot-LUN to the other slot\n",
-            prog, prog, prog);
+            "  %s status            Emit fwup --framing WN-frame with the active slot\n"
+            "  %s validate          Mark the active slot successful, reset its retry count\n"
+            "  %s revert            Switch GPT + boot-LUN to the other slot\n"
+            "  %s verify-boot-gpt   Exit 0 if the shipped GPT blob still matches the live disk\n",
+            prog, prog, prog, prog);
 }
 
 int main(int argc, char **argv)
@@ -294,6 +343,8 @@ int main(int argc, char **argv)
         return cmd_validate();
     if (argc == 2 && strcmp(argv[1], "revert") == 0)
         return cmd_revert();
+    if (argc == 2 && strcmp(argv[1], "verify-boot-gpt") == 0)
+        return cmd_verify_boot_gpt();
 
     usage(argv[0]);
     return 2;
