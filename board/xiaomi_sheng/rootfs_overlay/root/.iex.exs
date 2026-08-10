@@ -1,3 +1,4 @@
 NervesMOTD.print()
 
-import Toolshed
+use Toolshed
+

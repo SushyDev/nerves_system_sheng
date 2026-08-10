@@ -20,3 +20,9 @@ cp -a "$SHENG_FW_CLONE_DIR/." "$TARGET_DIR/lib/firmware/"
 rm -rf "$SHENG_FW_CLONE_DIR"
 
 echo "✓ Device-specific firmware installed to \$TARGET_DIR/lib/firmware"
+
+# rootfs_overlay copy doesn't preserve the 600 this needs - erlang's :ssh
+# host-key loading silently rejects group/world-readable private keys,
+# which would fall back to the runtime-generation race this file exists
+# to avoid (see config/target.exs).
+chmod 600 "$TARGET_DIR/etc/nerves_ssh/ssh_host_ed25519_key"

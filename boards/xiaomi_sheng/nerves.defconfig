@@ -12,13 +12,11 @@ BR2_cortex_a76=y
 BR2_ROOTFS_SKELETON_CUSTOM=y
 BR2_ROOTFS_SKELETON_CUSTOM_PATH="/nerves/env/nerves_system_sheng/board/nerves-common/skeleton"
 
-# Kernel fetched via git (Buildroot's CUSTOM_GIT downloader). Pinned to
-# sheng-7.1.5, not the newer sheng-7.1.6: matches the branch sm8550.config
-# was actually generated against (debian-sheng CI's default).
+# Kernel fetched via git (Buildroot's CUSTOM_GIT downloader).
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_CUSTOM_GIT=y
 BR2_LINUX_KERNEL_CUSTOM_REPO_URL="https://github.com/ianchb/sm8550-mainline.git"
-BR2_LINUX_KERNEL_CUSTOM_REPO_VERSION="sheng-7.1.5"
+BR2_LINUX_KERNEL_CUSTOM_REPO_VERSION="sheng-7.1.7"
 BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
 BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="/nerves/env/nerves_system_sheng/boards/xiaomi_sheng/sm8550.config"
 

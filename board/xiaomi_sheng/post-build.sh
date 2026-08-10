@@ -37,7 +37,7 @@ cat "$KERNEL_TO_USE" "$DEVICE_TREE" > "$ZIMAGE"
 #
 # console=ttyGS0: serial console over USB gadget (no UART adapter needed) -
 # see USB_SERIAL_DEBUGGING.md.
-CMDLINE="root=PARTLABEL=userdata rootwait rw console=ttyGS0,115200 earlycon=qcom_geni,0xa9c000 loglevel=8"
+CMDLINE="root=PARTLABEL=userdata rootwait rw console=ttyGS0,115200 earlycon=qcom_geni,0xa9c000 loglevel=4 usbcore.autosuspend=-1"
 BASE="0x00000000"
 KERNEL_OFFSET="0x00008000"
 TAGS_OFFSET="0x01e00000"
