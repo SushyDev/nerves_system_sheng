@@ -1,16 +1,19 @@
 /*
- * Standalone helper for nerves_system_sheng/fwup-ops.conf's status/revert/
- * validate tasks - fwup can't do runtime branching (which slot is active)
- * or feed a subprocess's output back into info(), so that logic lives here
- * instead. Mirrors lib/nerves_sheng/ab_update.ex's already-proven Elixir
- * logic bit-for-bit (same offsets/masks, same GPT-blob revert mechanism) -
- * this is a port, not new design. Untested on ARM64 as of writing (no
- * cross toolchain on the authoring host); review against ab_update.ex
- * before trusting on real hardware.
+ * Standalone helper for fwup-ops.conf/fwup.conf/ab_update.ex's revert!/1 -
+ * fwup can't branch on which slot is active, and boot-critical writes need
+ * one implementation, not several that can drift.
  *
- * GPT attribute byte (offset 54 within each 128-byte entry), confirmed
- * against the real Qualcomm gpt-utils layout:
+ * GPT attribute byte (offset 54 within each 128-byte entry):
  *   bit0-1 priority, bit2 ACTIVE, bit3-5 retry count, bit6 SUCCESSFUL, bit7 UNBOOTABLE.
+ *
+ * THIS FILE IS DUPLICATED (not symlinked - Buildroot's rsync copies
+ * symlinks as symlinks, breaking relative ones) at deps/nerves_system_br/
+ * package/ab_ops/src/ab_ops.c and nerves_system_sheng/deps/nerves_system_br/
+ * package/ab_ops/src/ab_ops.c - Buildroot's BR2_EXTERNAL_DIRS only scans
+ * /nerves/env/platform (nerves_system_br), so that's the copy actually
+ * compiled. Edit here, then copy to both, every time - a stale duplicate
+ * bricked this device once already (nerves_sheng_edl_brick_2026_08_11.md,
+ * "actual root cause" section) by silently building the wrong binary.
  */
 #include <dirent.h>
 #include <fcntl.h>
