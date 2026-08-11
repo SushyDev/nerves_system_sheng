@@ -1,11 +1,8 @@
 #
-# Splits the real captured userdata GPT entry (gpt-userdata-live-capture.bin,
-# LUN0 primary GPT, dumped live over the USB serial console - see
-# OTA_UPDATE_GUIDE.md) into rootfs_a/rootfs_b (4GiB each) + data (remainder).
-# Preserves every other entry, the MBR, and all header fields byte-for-byte
-# except the two CRC32s. Re-run and re-validate (validate-userdata-gpt.py)
-# any time the split size or target device's live capture changes - don't
-# hand-edit the .bin outputs.
+# Splits the live-captured userdata GPT entry (gpt-userdata-live-capture.bin)
+# into rootfs_a/rootfs_b (4GiB each) + data. Re-run + re-validate
+# (validate-userdata-gpt.py) if split size or live capture changes.
+# Don't hand-edit the .bin outputs.
 #
 import os, struct, zlib, uuid
 
