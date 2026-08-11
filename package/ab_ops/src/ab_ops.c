@@ -35,7 +35,7 @@
 #define GPT_ENTRIES_OFFSET 8192
 #define GPT_DISK_GUID_OFFSET (GPT_HEADER_OFFSET + 56)
 #define GPT_DISK_GUID_LEN 16
-#define GPT_MAX_ENTRIES_BYTES 16384 /* 96*128, this device's real table */
+#define GPT_MAX_ENTRIES_BYTES 16384 /* real table is 96*128=12288; rounded up */
 
 #define GPT_BLOB_DIR "/usr/share/nerves_sheng/gpt"
 #define SYS_BLOCK "/sys/class/block"
@@ -333,6 +333,23 @@ static int cmd_validate(void)
     return 0;
 }
 
+/* disk_guid only (not the whole table - unlike PartitionMigration's
+ * userdata check, raw_write/revert overwrite the whole blob anyway).
+ * Catches a stale gpt-primary-slot-*.bin before it's written - see
+ * nerves_sheng_edl_brick_2026_08_11.md. */
+static int disk_guid_matches_blob(const char *disk, const char *blob_path)
+{
+    unsigned char live_guid[GPT_DISK_GUID_LEN];
+    if (read_bytes(disk, GPT_DISK_GUID_OFFSET, live_guid, sizeof(live_guid)) != 0)
+        return 0;
+
+    unsigned char blob_guid[GPT_DISK_GUID_LEN];
+    if (read_bytes(blob_path, GPT_DISK_GUID_OFFSET, blob_guid, sizeof(blob_guid)) != 0)
+        return 0;
+
+    return memcmp(live_guid, blob_guid, sizeof(live_guid)) == 0;
+}
+
 /* Mirrors revert!/1 exactly: raw-write the OTHER slot's pre-shipped GPT
  * blob (real fastboot set_active capture, not synthesized - see
  * fwup.conf), then flip the UFS boot-LUN to match via the existing,
@@ -350,6 +367,13 @@ static int cmd_revert(void)
 
     char blob_path[256];
     snprintf(blob_path, sizeof(blob_path), "%s/gpt-primary-slot-%c.bin", GPT_BLOB_DIR, good_slot);
+
+    /* same staleness check fwup.conf's upgrade.a/b run before their GPT
+     * write - revert is the unattended auto-rollback path, needs it too. */
+    if (!disk_guid_matches_blob(disk, blob_path)) {
+        fprintf(stderr, "revert: disk_guid mismatch - blob is stale, refusing to write\n");
+        return 1;
+    }
 
     FILE *blob_file = fopen(blob_path, "rb");
     if (!blob_file) {
@@ -392,27 +416,16 @@ static int cmd_revert(void)
     return 0;
 }
 
-/* disk_guid only (not the whole table - unlike PartitionMigration's
- * userdata check, raw_write/revert overwrite the whole blob anyway).
- * Catches a stale gpt-primary-slot-*.bin before it's written - see
- * nerves_sheng_edl_brick_2026_08_11.md. */
 static int cmd_verify_boot_gpt(void)
 {
     char disk[64];
     if (resolve_disk("boot_a", disk, sizeof(disk)) != 0)
         return 1;
 
-    unsigned char live_guid[GPT_DISK_GUID_LEN];
-    if (read_bytes(disk, GPT_DISK_GUID_OFFSET, live_guid, sizeof(live_guid)) != 0)
-        return 1;
-
     char blob_path[256];
     snprintf(blob_path, sizeof(blob_path), "%s/gpt-primary-slot-a.bin", GPT_BLOB_DIR);
-    unsigned char blob_guid[GPT_DISK_GUID_LEN];
-    if (read_bytes(blob_path, GPT_DISK_GUID_OFFSET, blob_guid, sizeof(blob_guid)) != 0)
-        return 1;
 
-    if (memcmp(live_guid, blob_guid, sizeof(live_guid)) != 0) {
+    if (!disk_guid_matches_blob(disk, blob_path)) {
         fprintf(stderr, "verify-boot-gpt: disk_guid mismatch - blob is stale, recapture it\n");
         return 1;
     }
