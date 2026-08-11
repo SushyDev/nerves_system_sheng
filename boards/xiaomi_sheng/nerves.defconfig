@@ -1,0 +1,133 @@
+# Xiaomi Pad 6S Pro (SM8550) - Nerves System Configuration
+BR2_aarch64=y
+BR2_cortex_a76=y
+
+# board/nerves-common/skeleton was never wired up (same class of bug as the
+# busybox config below): Buildroot's own default skeleton has no /var at
+# all, no var/run -> ../run symlink, so /var/run ends up a real, persistent
+# directory instead of tmpfs-backed. Daemons that pidfile-lock under
+# /var/run (chronyd) then see stale PIDs from a previous boot match
+# whatever unrelated process now holds that PID number, and refuse to
+# start ("Another chronyd may already be running").
+BR2_ROOTFS_SKELETON_CUSTOM=y
+BR2_ROOTFS_SKELETON_CUSTOM_PATH="/nerves/env/nerves_system_sheng/board/nerves-common/skeleton"
+
+# Kernel fetched via git (Buildroot's CUSTOM_GIT downloader).
+BR2_LINUX_KERNEL=y
+BR2_LINUX_KERNEL_CUSTOM_GIT=y
+BR2_LINUX_KERNEL_CUSTOM_REPO_URL="https://github.com/ianchb/sm8550-mainline.git"
+BR2_LINUX_KERNEL_CUSTOM_REPO_VERSION="sheng-7.1.7"
+BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
+BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="/nerves/env/nerves_system_sheng/boards/xiaomi_sheng/sm8550.config"
+
+# LLVM/Clang was tried here and caused boot failures - reverted.
+
+BR2_KERNEL_HEADERS_7_0=y
+BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_7_0=y
+
+BR2_LINUX_KERNEL_DTS_SUPPORT=y
+BR2_LINUX_KERNEL_INTREE_DTS_NAME="qcom/sm8550-xiaomi-sheng"
+
+# local kernel fixes, applied post-extract. Absolute path - relative paths
+# resolve against Buildroot's own tree, not this br2-external one.
+BR2_LINUX_KERNEL_PATCH="/nerves/env/nerves_system_sheng/board/xiaomi_sheng/patches/linux"
+
+BR2_PACKAGE_LINUX_FIRMWARE=y
+BR2_PACKAGE_LINUX_FIRMWARE_QCOM_ADRENO=y
+BR2_PACKAGE_LINUX_FIRMWARE_QCOM_MODEM=y
+BR2_PACKAGE_LINUX_FIRMWARE_QCOM_AUDIO=y
+# WiFi (ath12k, PCIe transport - see CONFIG_ATH12K_PCI in sm8550.config).
+# Generic upstream calibration data; post-build-target.sh overwrites it with
+# the device-specific set. No WCN7850 Bluetooth firmware option in this
+# Buildroot version - btqca/BT_QCOMSMD drivers are enabled but fw is a known gap.
+BR2_PACKAGE_LINUX_FIRMWARE_QUALCOMM_WCN7850=y
+
+# cfg80211 wants /lib/firmware/regulatory.db(.p7s) (CFG80211_REQUIRE_SIGNED_REGDB=y
+# in sm8550.config) - without it, boot logs "regulatory.db failed with error -2".
+BR2_PACKAGE_WIRELESS_REGDB=y
+
+# Every Nerves system must enable Buildroot's `erlang` package itself - not
+# on by default. Without it, ERTS_DIR is nil in nerves_env.exs.
+#
+# OTP 29, not 28: host toolchain here only has 29.
+BR2_PACKAGE_ERLANG=y
+BR2_PACKAGE_ERLANG_29=y
+
+# GCC 14.4.0 (Buildroot default) fails bootstrapping host-gcc-initial's
+# vectorizer ("undefined reference to vect_gimple_build"). 13.4.0 works.
+BR2_TOOLCHAIN_BUILDROOT=y
+BR2_GCC_VERSION_13_X=y
+
+BR2_CCACHE=y
+
+BR2_PACKAGE_NERVES_CONFIG_ACCEPT_RNG_NOTICE=y
+
+# Flashed directly to Android "userdata" fastboot partition; cmdline must
+# match root=PARTLABEL=userdata (post-build.sh). ext4, not plain ext2, to
+# match debian-sheng's proven-working rootfs.img (EXT2_4 selects the ext4
+# variant of Buildroot's legacy-named EXT2 filesystem generator).
+BR2_TARGET_ROOTFS_EXT2=y
+BR2_TARGET_ROOTFS_EXT2_4=y
+BR2_TARGET_ROOTFS_EXT2_SIZE="1G"
+
+# Post-image script: runs on $BINARIES_DIR after images are packed, builds
+# fastboot boot.img/rootfs.img. (Not POST_SCRIPT - not a real Kconfig symbol.)
+BR2_ROOTFS_POST_IMAGE_SCRIPT="/nerves/env/nerves_system_sheng/board/xiaomi_sheng/post-build.sh"
+
+# Post-build script: fixes up $TARGET_DIR before it's packed into rootfs.ext2.
+BR2_ROOTFS_POST_BUILD_SCRIPT="/nerves/env/nerves_system_sheng/board/xiaomi_sheng/post-build-target.sh"
+
+# CS35L43 speaker-amp firmware + ALSA UCM profiles, vendored from
+# references/Xiaomi-pad-6s-pro-Linux. Codec drivers already in sm8550.config.
+BR2_ROOTFS_OVERLAY="/nerves/env/nerves_system_sheng/board/xiaomi_sheng/rootfs_overlay"
+
+# erlinit was never enabled - root cause of /sbin/init being busybox's symlink.
+BR2_PACKAGE_ERLINIT=y
+
+# Buildroot's default init installs /sbin/init -> busybox; INIT_NONE stops it
+# from managing /sbin/init so erlinit's own install can take that path.
+BR2_INIT_NONE=y
+
+BR2_PACKAGE_BUSYBOX=y
+BR2_PACKAGE_UTIL_LINUX=y
+BR2_PACKAGE_OPENSSH=y
+
+# needed to cross-compile nerves_uevent (netlink uevent parsing)
+BR2_PACKAGE_LIBMNL=y
+
+# needed to cross-compile vintage_net_wifi (nl80211/netlink wifi control)
+BR2_PACKAGE_LIBNL=y
+
+# VintageNetWiFi shells out to wpa_supplicant to associate WPA-PSK; NL80211
+# variant since ath12k is cfg80211/mac80211, not legacy wext.
+#
+# CTRL_IFACE and WPS: off by default in Buildroot's wpa_supplicant config, but
+# VintageNetWiFi's generated conf always sets ctrl_interface= and
+# wps_cred_processing=1 - without these, wpa_supplicant rejects the file at
+# startup and VintageNet retries forever with no useful error surfaced.
+BR2_PACKAGE_WPA_SUPPLICANT=y
+BR2_PACKAGE_WPA_SUPPLICANT_NL80211=y
+BR2_PACKAGE_WPA_SUPPLICANT_CTRL_IFACE=y
+BR2_PACKAGE_WPA_SUPPLICANT_WPS=y
+
+# ALSA + UCM for the CS35L43/WCD938X mixer routing profiles (rootfs overlay
+# above).
+BR2_PACKAGE_ALSA_LIB=y
+BR2_PACKAGE_ALSA_LIB_UCM=y
+BR2_PACKAGE_ALSA_UTILS=y
+
+# raw hw:0,0 rejects playback ("no backend DAIs enabled") until the vendored
+# UCM2 profile is applied via alsaucm, or equivalent amixer controls are set.
+BR2_PACKAGE_ALSA_UTILS_ALSAUCM=y
+BR2_PACKAGE_ALSA_UTILS_AMIXER=y
+
+# default busybox.config has CONFIG_NTPD unset, so NervesTime's ntpd
+# (needs busybox's -n -S <script> -p <server> CLI, not ntp.org's ntpd) never
+# existed on the built image. Point at nerves-common's config, which sets it.
+BR2_PACKAGE_BUSYBOX_CONFIG="/nerves/env/nerves_system_sheng/board/nerves-common/busybox.config"
+
+# chronyd is a much better NTP client than busybox ntpd (handles DHCP-provided
+# servers, real drift tracking). rootfs_overlay/usr/sbin/ntpd shims busybox
+# ntpd's CLI/report protocol on top of it so NervesTime.Ntpd can drive it
+# unmodified.
+BR2_PACKAGE_CHRONY=y

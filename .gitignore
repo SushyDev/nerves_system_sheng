@@ -4,6 +4,7 @@
 *~
 /artifacts
 /nerves-system-*
+/o
 /_build
 /cover
 /deps
@@ -12,3 +13,8 @@ erl_crash.dump
 *.ez
 /doc
 /tests/test_output
+/.nerves
+/boards/*/*.config
+
+# tmp
+/docs

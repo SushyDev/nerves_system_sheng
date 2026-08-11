@@ -1,0 +1,8 @@
+#!/bin/sh
+# Get device serial from hardware detection
+board_id=$(od -A n -t x1 /proc/device-tree/qcom,board-id 2>/dev/null | tr -d ' \n' | head -c 8)
+if [ -z "$board_id" ]; then
+  echo "unconfigured"
+else
+  echo "SHENG-${board_id}"
+fi
