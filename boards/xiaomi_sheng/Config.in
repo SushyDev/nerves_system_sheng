@@ -3,19 +3,8 @@
 # If these are non-proprietary, please consider contributing them back to
 # Nerves or Buildroot.
 #
-# ab_ops/ufs_boot_lun are NOT sourced from here (or from
-# nerves_system_sheng/Config.in) - deeper than a Config.in sourcing
-# ambiguity, Buildroot's actual *.mk package discovery (separate from
-# Kconfig symbol sourcing) only ever scans BR2_EXTERNAL_DIRS, and the
-# Docker build_runner's generated .br2-external.mk registers ONLY
-# /nerves/env/platform (deps/nerves_system_br) as external tree "NERVES" -
-# nerves_system_sheng's own package/ is never scanned for *.mk at all,
-# confirmed via the generated .br2-external.mk directly. A Config.in-only
-# sourcing trick (tried here first) got the Kconfig symbol recognized but
-# never actually built - zero trace in a full build log. Real fix: these
-# two packages' Config.in/.mk/src are duplicated into
-# deps/nerves_system_br/package/{ab_ops,ufs_boot_lun}/ (both the root
-# app's copy and this nested one), sourced from deps/nerves_system_br/
-# Config.in instead. Keep both copies in sync by hand if either changes -
-# not ideal, but deps/nerves_system_br isn't something this project
-# controls the discovery mechanism for.
+# ab_ops/ufs_boot_lun aren't sourced from here - Buildroot's *.mk package
+# discovery only scans deps/nerves_system_br (BR2_EXTERNAL_DIRS), not this
+# package/ dir. Both packages are duplicated into
+# deps/nerves_system_br/package/{ab_ops,ufs_boot_lun}/ and sourced from
+# there instead. Keep copies in sync by hand.

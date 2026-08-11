@@ -7,10 +7,9 @@ set -e
 TARGET_DIR="$1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# GPT blobs used to live duplicated under rootfs_overlay too, and drifted
-# out of sync silently (see nerves_sheng_edl_brick_2026_08_11.md - a stale
-# copy there is what let a corrupted GPT get written). board/xiaomi_sheng/gpt/
-# is now the only source; always copy fresh here so there's nothing to forget.
+# board/xiaomi_sheng/gpt/ is the single source of truth for GPT blobs - a
+# stale duplicate under rootfs_overlay once caused a corrupted GPT write
+# (see nerves_sheng_edl_brick_2026_08_11.md). Always copy fresh, no duplicates.
 mkdir -p "$TARGET_DIR/usr/share/nerves_sheng/gpt"
 cp "$SCRIPT_DIR/gpt/"*.bin "$TARGET_DIR/usr/share/nerves_sheng/gpt/"
 
