@@ -2,17 +2,16 @@
 BR2_aarch64=y
 BR2_cortex_a76=y
 
-# board/nerves-common/skeleton was never wired up (same class of bug as the
-# busybox config below): Buildroot's own default skeleton has no /var at
-# all, no var/run -> ../run symlink, so /var/run ends up a real, persistent
-# directory instead of tmpfs-backed. Daemons that pidfile-lock under
-# /var/run (chronyd) then see stale PIDs from a previous boot match
-# whatever unrelated process now holds that PID number, and refuse to
-# start ("Another chronyd may already be running").
+# Buildroot's default skeleton has no /var/run -> ../run symlink, so
+# /var/run is a real persistent dir instead of tmpfs - daemons that
+# pidfile-lock there (chronyd) see stale PIDs across boots and refuse to start.
 BR2_ROOTFS_SKELETON_CUSTOM=y
 BR2_ROOTFS_SKELETON_CUSTOM_PATH="/nerves/env/nerves_system_sheng/board/nerves-common/skeleton"
 
-# Kernel fetched via git (Buildroot's CUSTOM_GIT downloader).
+# Bumped sheng-7.1.5 -> 7.1.7: 7.1.6 added a posted-write flush to
+# ath12k/pci.c's reset sequence, plausible fix for WCN7850 hanging at
+# "Wait for device to enter SBL or Mission mode" (confirmed on hardware).
+# 7.1.7 just rides along with unrelated display/USB changes.
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_CUSTOM_GIT=y
 BR2_LINUX_KERNEL_CUSTOM_REPO_URL="https://github.com/ianchb/sm8550-mainline.git"
@@ -36,20 +35,17 @@ BR2_PACKAGE_LINUX_FIRMWARE=y
 BR2_PACKAGE_LINUX_FIRMWARE_QCOM_ADRENO=y
 BR2_PACKAGE_LINUX_FIRMWARE_QCOM_MODEM=y
 BR2_PACKAGE_LINUX_FIRMWARE_QCOM_AUDIO=y
-# WiFi (ath12k, PCIe transport - see CONFIG_ATH12K_PCI in sm8550.config).
-# Generic upstream calibration data; post-build-target.sh overwrites it with
-# the device-specific set. No WCN7850 Bluetooth firmware option in this
-# Buildroot version - btqca/BT_QCOMSMD drivers are enabled but fw is a known gap.
+# WiFi (ath12k/PCIe, see CONFIG_ATH12K_PCI). Generic calibration data here;
+# post-build-target.sh overwrites with the device-specific set. No WCN7850
+# Bluetooth firmware in this Buildroot version - known gap.
 BR2_PACKAGE_LINUX_FIRMWARE_QUALCOMM_WCN7850=y
 
 # cfg80211 wants /lib/firmware/regulatory.db(.p7s) (CFG80211_REQUIRE_SIGNED_REGDB=y
 # in sm8550.config) - without it, boot logs "regulatory.db failed with error -2".
 BR2_PACKAGE_WIRELESS_REGDB=y
 
-# Every Nerves system must enable Buildroot's `erlang` package itself - not
-# on by default. Without it, ERTS_DIR is nil in nerves_env.exs.
-#
-# OTP 29, not 28: host toolchain here only has 29.
+# Not on by default - without it, ERTS_DIR is nil in nerves_env.exs.
+# OTP 29: host toolchain here only has 29.
 BR2_PACKAGE_ERLANG=y
 BR2_PACKAGE_ERLANG_29=y
 
@@ -60,12 +56,13 @@ BR2_GCC_VERSION_13_X=y
 
 BR2_CCACHE=y
 
+# Parent toggle was never actually enabled, only its RNG-notice sub-option -
+# select clauses (boardid, uboot-tools, host-fwup, squashfs) never fired.
+BR2_PACKAGE_NERVES_CONFIG=y
 BR2_PACKAGE_NERVES_CONFIG_ACCEPT_RNG_NOTICE=y
 
-# Flashed directly to Android "userdata" fastboot partition; cmdline must
-# match root=PARTLABEL=userdata (post-build.sh). ext4, not plain ext2, to
-# match debian-sheng's proven-working rootfs.img (EXT2_4 selects the ext4
-# variant of Buildroot's legacy-named EXT2 filesystem generator).
+# Flashed to Android "userdata" fastboot partition, root=PARTLABEL=userdata
+# (post-build.sh). EXT2_4 = ext4 variant, matching debian-sheng's proven rootfs.
 BR2_TARGET_ROOTFS_EXT2=y
 BR2_TARGET_ROOTFS_EXT2_4=y
 BR2_TARGET_ROOTFS_EXT2_SIZE="1G"
@@ -92,19 +89,35 @@ BR2_PACKAGE_BUSYBOX=y
 BR2_PACKAGE_UTIL_LINUX=y
 BR2_PACKAGE_OPENSSH=y
 
+# replaces erl's default heart port with one that drives the hw watchdog +
+# supports NervesSheng.ABUpdate's revert path (rel/vm.args.eex already sets -heart)
+BR2_PACKAGE_NERVES_HEART=y
+
+# needed on-target for NervesSheng.ABUpdate to apply real A/B OTA updates
+BR2_PACKAGE_FWUP=y
+BR2_PACKAGE_UFS_BOOT_LUN=y
+
+# status/revert/validate helper for fwup-ops.conf - see package/ab_ops/
+BR2_PACKAGE_AB_OPS=y
+
+# resize2fs/tune2fs: NervesSheng.DataMount grows data.img + adds back the
+# journal on-target. Shipped data.img is a small journal-less bootstrap
+# because fastboot's sparse re-encoding corrupts the journal on this ABL.
+BR2_PACKAGE_E2FSPROGS=y
+BR2_PACKAGE_E2FSPROGS_RESIZE2FS=y
+BR2_PACKAGE_UTIL_LINUX_LIBUUID=y
+BR2_PACKAGE_UTIL_LINUX_LIBBLKID=y
+
 # needed to cross-compile nerves_uevent (netlink uevent parsing)
 BR2_PACKAGE_LIBMNL=y
 
 # needed to cross-compile vintage_net_wifi (nl80211/netlink wifi control)
 BR2_PACKAGE_LIBNL=y
 
-# VintageNetWiFi shells out to wpa_supplicant to associate WPA-PSK; NL80211
-# variant since ath12k is cfg80211/mac80211, not legacy wext.
-#
-# CTRL_IFACE and WPS: off by default in Buildroot's wpa_supplicant config, but
-# VintageNetWiFi's generated conf always sets ctrl_interface= and
-# wps_cred_processing=1 - without these, wpa_supplicant rejects the file at
-# startup and VintageNet retries forever with no useful error surfaced.
+# NL80211 (ath12k is cfg80211/mac80211, not legacy wext). CTRL_IFACE/WPS are
+# off by default in Buildroot but VintageNetWiFi's generated conf always
+# sets ctrl_interface=/wps_cred_processing=1 - without them wpa_supplicant
+# rejects the config file and VintageNet retries forever silently.
 BR2_PACKAGE_WPA_SUPPLICANT=y
 BR2_PACKAGE_WPA_SUPPLICANT_NL80211=y
 BR2_PACKAGE_WPA_SUPPLICANT_CTRL_IFACE=y
@@ -121,9 +134,8 @@ BR2_PACKAGE_ALSA_UTILS=y
 BR2_PACKAGE_ALSA_UTILS_ALSAUCM=y
 BR2_PACKAGE_ALSA_UTILS_AMIXER=y
 
-# default busybox.config has CONFIG_NTPD unset, so NervesTime's ntpd
-# (needs busybox's -n -S <script> -p <server> CLI, not ntp.org's ntpd) never
-# existed on the built image. Point at nerves-common's config, which sets it.
+# Default busybox.config has CONFIG_NTPD unset; NervesTime needs busybox's
+# ntpd CLI (-n -S <script> -p <server>), not ntp.org's. nerves-common's config sets it.
 BR2_PACKAGE_BUSYBOX_CONFIG="/nerves/env/nerves_system_sheng/board/nerves-common/busybox.config"
 
 # chronyd is a much better NTP client than busybox ntpd (handles DHCP-provided

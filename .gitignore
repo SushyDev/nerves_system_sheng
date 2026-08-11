@@ -14,7 +14,12 @@ erl_crash.dump
 /doc
 /tests/test_output
 /.nerves
-/boards/*/*.config
+
+# NOTE: sm8550.config is hand-maintained (referenced directly by
+# BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE), NOT a Buildroot output artifact -
+# a prior ignore rule here (/boards/*/*.config) excluded it from git
+# entirely, silently discarding every kernel config change across this
+# project's whole history. Track it.
 
 # tmp
 /docs
