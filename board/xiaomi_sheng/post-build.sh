@@ -50,7 +50,7 @@ TAGS_OFFSET="0x01e00000"
 PAGESIZE="4096"
 HEADER_VERSION="0"
 
-# see mkbootimg.py header for why it's vendored instead of an external binary
+# vendored AOSP mkbootimg.py: buildroot host has no prebuilt mkbootimg binary
 echo "Using vendored mkbootimg.py to create proper Android boot images..."
 for slot in a b; do
   case "$slot" in
