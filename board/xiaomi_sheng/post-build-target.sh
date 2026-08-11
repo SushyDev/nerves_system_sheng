@@ -5,6 +5,13 @@ set -e
 # runs before rootfs.ext2 is packed - post-build.sh only sees the packed image
 
 TARGET_DIR="$1"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# board/xiaomi_sheng/gpt/ is the single source of truth for GPT blobs - a
+# stale duplicate under rootfs_overlay once caused a corrupted GPT write
+# (see nerves_sheng_edl_brick_2026_08_11.md). Always copy fresh, no duplicates.
+mkdir -p "$TARGET_DIR/usr/share/nerves_sheng/gpt"
+cp "$SCRIPT_DIR/gpt/"*.bin "$TARGET_DIR/usr/share/nerves_sheng/gpt/"
 
 # nerves.defconfig's linux-firmware is generic upstream only; fetch real
 # sheng firmware (wifi/audio/bt/sensors) via git, same as the kernel source

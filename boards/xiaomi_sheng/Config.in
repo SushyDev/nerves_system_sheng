@@ -2,3 +2,9 @@
 #
 # If these are non-proprietary, please consider contributing them back to
 # Nerves or Buildroot.
+#
+# ab_ops/ufs_boot_lun aren't sourced from here - Buildroot's *.mk package
+# discovery only scans deps/nerves_system_br (BR2_EXTERNAL_DIRS), not this
+# package/ dir. Both packages are duplicated into
+# deps/nerves_system_br/package/{ab_ops,ufs_boot_lun}/ and sourced from
+# there instead. Keep copies in sync by hand.

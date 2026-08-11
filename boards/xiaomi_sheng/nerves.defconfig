@@ -56,6 +56,9 @@ BR2_GCC_VERSION_13_X=y
 
 BR2_CCACHE=y
 
+# Parent toggle was never actually enabled, only its RNG-notice sub-option -
+# select clauses (boardid, uboot-tools, host-fwup, squashfs) never fired.
+BR2_PACKAGE_NERVES_CONFIG=y
 BR2_PACKAGE_NERVES_CONFIG_ACCEPT_RNG_NOTICE=y
 
 # Flashed to Android "userdata" fastboot partition, root=PARTLABEL=userdata

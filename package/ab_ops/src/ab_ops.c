@@ -1,19 +1,23 @@
 /*
- * Standalone helper for nerves_system_sheng/fwup-ops.conf's status/revert/
- * validate tasks - fwup can't do runtime branching (which slot is active)
- * or feed a subprocess's output back into info(), so that logic lives here
- * instead. Mirrors lib/nerves_sheng/ab_update.ex's already-proven Elixir
- * logic bit-for-bit (same offsets/masks, same GPT-blob revert mechanism) -
- * this is a port, not new design. Untested on ARM64 as of writing (no
- * cross toolchain on the authoring host); review against ab_update.ex
- * before trusting on real hardware.
+ * Standalone helper for fwup-ops.conf/fwup.conf/ab_update.ex's revert!/1 -
+ * fwup can't branch on which slot is active, and boot-critical writes need
+ * one implementation, not several that can drift.
  *
- * GPT attribute byte (offset 54 within each 128-byte entry), confirmed
- * against the real Qualcomm gpt-utils layout:
+ * GPT attribute byte (offset 54 within each 128-byte entry):
  *   bit0-1 priority, bit2 ACTIVE, bit3-5 retry count, bit6 SUCCESSFUL, bit7 UNBOOTABLE.
+ *
+ * THIS FILE IS DUPLICATED (not symlinked - Buildroot's rsync copies
+ * symlinks as symlinks, breaking relative ones) at deps/nerves_system_br/
+ * package/ab_ops/src/ab_ops.c and nerves_system_sheng/deps/nerves_system_br/
+ * package/ab_ops/src/ab_ops.c - Buildroot's BR2_EXTERNAL_DIRS only scans
+ * /nerves/env/platform (nerves_system_br), so that's the copy actually
+ * compiled. Edit here, then copy to both, every time - a stale duplicate
+ * bricked this device once already (nerves_sheng_edl_brick_2026_08_11.md,
+ * "actual root cause" section) by silently building the wrong binary.
  */
 #include <dirent.h>
 #include <fcntl.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +30,12 @@
 #define RETRY_MASK 0x38
 #define RETRY_MAX 0x38
 #define SUCCESS_BIT 0x40
+
+#define GPT_HEADER_OFFSET 4096
+#define GPT_ENTRIES_OFFSET 8192
+#define GPT_DISK_GUID_OFFSET (GPT_HEADER_OFFSET + 56)
+#define GPT_DISK_GUID_LEN 16
+#define GPT_MAX_ENTRIES_BYTES 16384 /* real table is 96*128=12288; rounded up */
 
 #define GPT_BLOB_DIR "/usr/share/nerves_sheng/gpt"
 #define SYS_BLOCK "/sys/class/block"
@@ -115,6 +125,106 @@ static int read_byte(const char *disk, off_t offset, unsigned char *out)
         fprintf(stderr, "pread at offset %lld failed\n", (long long)offset);
         return -1;
     }
+    return 0;
+}
+
+/* No zlib in this build (ab_ops.mk links nothing) - GPT's CRC32 is the
+ * standard IEEE 802.3 one, same polynomial as zlib's crc32. */
+static uint32_t crc32_compute(const unsigned char *data, size_t len)
+{
+    uint32_t crc = 0xffffffff;
+    for (size_t i = 0; i < len; i++) {
+        crc ^= data[i];
+        for (int b = 0; b < 8; b++)
+            crc = (crc >> 1) ^ (0xedb88320 & (~(crc & 1) + 1));
+    }
+    return ~crc;
+}
+
+static uint32_t read_u32le(const unsigned char *p) { return p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24); }
+
+static void write_u32le(unsigned char *p, uint32_t v)
+{
+    p[0] = v & 0xff;
+    p[1] = (v >> 8) & 0xff;
+    p[2] = (v >> 16) & 0xff;
+    p[3] = (v >> 24) & 0xff;
+}
+
+static int read_bytes(const char *path, off_t offset, unsigned char *out, size_t len)
+{
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        perror("open");
+        return -1;
+    }
+    ssize_t n = pread(fd, out, len, offset);
+    close(fd);
+    if (n != (ssize_t)len) {
+        fprintf(stderr, "pread at offset %lld failed\n", (long long)offset);
+        return -1;
+    }
+    return 0;
+}
+
+/* Recomputes entries_crc32/header_crc32 from the live entries table and
+ * rewrites them if they don't match what the header currently claims.
+ * A HyperOS stock restore left this LUN's GPT with a self-consistent
+ * header but a stale entries_crc32 - ABL tolerated it for a while, then
+ * fell to EDL (see nerves_sheng_edl_brick_2026_08_11.md). Repair only:
+ * never touches entry data, just the two checksum fields. */
+static int fix_gpt_crc(const char *disk)
+{
+    unsigned char hdr[512];
+    if (read_bytes(disk, GPT_HEADER_OFFSET, hdr, sizeof(hdr)) != 0)
+        return -1;
+
+    uint32_t header_size = read_u32le(hdr + 12);
+    uint32_t num_entries = read_u32le(hdr + 80);
+    uint32_t entry_size = read_u32le(hdr + 84);
+    uint32_t stored_entries_crc = read_u32le(hdr + 88);
+    size_t entries_len = (size_t)num_entries * entry_size;
+
+    if (header_size > sizeof(hdr) || entries_len == 0 || entries_len > GPT_MAX_ENTRIES_BYTES) {
+        fprintf(stderr, "fix-boot-gpt-crc: implausible header (num_entries=%u entry_size=%u)\n", num_entries, entry_size);
+        return -1;
+    }
+
+    unsigned char entries[GPT_MAX_ENTRIES_BYTES];
+    if (read_bytes(disk, GPT_ENTRIES_OFFSET, entries, entries_len) != 0)
+        return -1;
+
+    uint32_t calc_entries_crc = crc32_compute(entries, entries_len);
+
+    unsigned char hdr_zeroed[512];
+    memcpy(hdr_zeroed, hdr, sizeof(hdr_zeroed));
+    write_u32le(hdr_zeroed + 16, 0);
+    uint32_t stored_header_crc = read_u32le(hdr + 16);
+    uint32_t calc_header_crc_asis = crc32_compute(hdr_zeroed, header_size);
+
+    if (calc_entries_crc == stored_entries_crc && calc_header_crc_asis == stored_header_crc) {
+        return 0; /* already valid */
+    }
+
+    write_u32le(hdr_zeroed + 88, calc_entries_crc);
+    uint32_t calc_header_crc = crc32_compute(hdr_zeroed, header_size);
+    write_u32le(hdr_zeroed + 16, calc_header_crc);
+
+    int fd = open(disk, O_WRONLY);
+    if (fd < 0) {
+        perror("open");
+        return -1;
+    }
+    ssize_t n = pwrite(fd, hdr_zeroed, header_size, GPT_HEADER_OFFSET);
+    if (n == (ssize_t)header_size)
+        fsync(fd);
+    close(fd);
+    if (n != (ssize_t)header_size) {
+        fprintf(stderr, "fix-boot-gpt-crc: header write incomplete\n");
+        return -1;
+    }
+
+    fprintf(stderr, "fix-boot-gpt-crc: repaired (entries_crc 0x%08x -> 0x%08x)\n", stored_entries_crc, calc_entries_crc);
     return 0;
 }
 
@@ -215,8 +325,29 @@ static int cmd_validate(void)
         return 1;
     }
 
+    /* a single-byte attribute patch invalidates entries_crc32 unless
+     * recomputed - don't reintroduce the same corruption we're fixing. */
+    fix_gpt_crc(disk);
+
     printf("validated slot %c (0x%02x -> 0x%02x)\n", slot, current, new_byte);
     return 0;
+}
+
+/* disk_guid only (not the whole table - unlike PartitionMigration's
+ * userdata check, raw_write/revert overwrite the whole blob anyway).
+ * Catches a stale gpt-primary-slot-*.bin before it's written - see
+ * nerves_sheng_edl_brick_2026_08_11.md. */
+static int disk_guid_matches_blob(const char *disk, const char *blob_path)
+{
+    unsigned char live_guid[GPT_DISK_GUID_LEN];
+    if (read_bytes(disk, GPT_DISK_GUID_OFFSET, live_guid, sizeof(live_guid)) != 0)
+        return 0;
+
+    unsigned char blob_guid[GPT_DISK_GUID_LEN];
+    if (read_bytes(blob_path, GPT_DISK_GUID_OFFSET, blob_guid, sizeof(blob_guid)) != 0)
+        return 0;
+
+    return memcmp(live_guid, blob_guid, sizeof(live_guid)) == 0;
 }
 
 /* Mirrors revert!/1 exactly: raw-write the OTHER slot's pre-shipped GPT
@@ -236,6 +367,13 @@ static int cmd_revert(void)
 
     char blob_path[256];
     snprintf(blob_path, sizeof(blob_path), "%s/gpt-primary-slot-%c.bin", GPT_BLOB_DIR, good_slot);
+
+    /* same staleness check fwup.conf's upgrade.a/b run before their GPT
+     * write - revert is the unattended auto-rollback path, needs it too. */
+    if (!disk_guid_matches_blob(disk, blob_path)) {
+        fprintf(stderr, "revert: disk_guid mismatch - blob is stale, refusing to write\n");
+        return 1;
+    }
 
     FILE *blob_file = fopen(blob_path, "rb");
     if (!blob_file) {
@@ -264,6 +402,8 @@ static int cmd_revert(void)
         return 1;
     }
 
+    fix_gpt_crc(disk); /* cheap insurance if the blob itself wasn't fully valid */
+
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "ufs_boot_lun write %c", good_slot);
     int status = system(cmd);
@@ -276,14 +416,41 @@ static int cmd_revert(void)
     return 0;
 }
 
+static int cmd_verify_boot_gpt(void)
+{
+    char disk[64];
+    if (resolve_disk("boot_a", disk, sizeof(disk)) != 0)
+        return 1;
+
+    char blob_path[256];
+    snprintf(blob_path, sizeof(blob_path), "%s/gpt-primary-slot-a.bin", GPT_BLOB_DIR);
+
+    if (!disk_guid_matches_blob(disk, blob_path)) {
+        fprintf(stderr, "verify-boot-gpt: disk_guid mismatch - blob is stale, recapture it\n");
+        return 1;
+    }
+
+    return 0;
+}
+
+static int cmd_fix_boot_gpt_crc(void)
+{
+    char disk[64];
+    if (resolve_disk("boot_a", disk, sizeof(disk)) != 0)
+        return 1;
+    return fix_gpt_crc(disk) == 0 ? 0 : 1;
+}
+
 static void usage(const char *prog)
 {
     fprintf(stderr,
             "Usage:\n"
-            "  %s status     Emit fwup --framing WN-frame with the active slot\n"
-            "  %s validate   Mark the active slot successful, reset its retry count\n"
-            "  %s revert     Switch GPT + boot-LUN to the other slot\n",
-            prog, prog, prog);
+            "  %s status              Emit fwup --framing WN-frame with the active slot\n"
+            "  %s validate            Mark the active slot successful, reset its retry count\n"
+            "  %s revert              Switch GPT + boot-LUN to the other slot\n"
+            "  %s verify-boot-gpt     Exit 0 if the shipped GPT blob still matches the live disk\n"
+            "  %s fix-boot-gpt-crc    Repair entries_crc32/header_crc32 if stale (never touches entry data)\n",
+            prog, prog, prog, prog, prog);
 }
 
 int main(int argc, char **argv)
@@ -294,6 +461,10 @@ int main(int argc, char **argv)
         return cmd_validate();
     if (argc == 2 && strcmp(argv[1], "revert") == 0)
         return cmd_revert();
+    if (argc == 2 && strcmp(argv[1], "verify-boot-gpt") == 0)
+        return cmd_verify_boot_gpt();
+    if (argc == 2 && strcmp(argv[1], "fix-boot-gpt-crc") == 0)
+        return cmd_fix_boot_gpt_crc();
 
     usage(argv[0]);
     return 2;
